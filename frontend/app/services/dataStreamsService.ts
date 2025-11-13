@@ -51,7 +51,7 @@ class DataStreamsService {
       // Initialize SDK with viem client
       const { createPublicClient, http } = await import('viem');
 
-      const client = createPublicClient({
+      const publicClient = createPublicClient({
         chain: {
           id: this.config.chainId,
           name: 'Somnia Testnet',
@@ -65,11 +65,14 @@ class DataStreamsService {
         transport: http(this.config.rpcUrl),
       });
 
-      this.sdk = new SDK(client as any);
+      // Initialize SDK with public client only (read-only mode)
+      this.sdk = new SDK({
+        public: publicClient as any,
+      });
 
       this.isInitialized = true;
       this.reconnectAttempts = 0;
-      console.log('✓ Somnia Data Streams initialized');
+      console.log('✓ Somnia Data Streams SDK initialized');
     } catch (error) {
       console.error('Failed to initialize Data Streams:', error);
       this.handleReconnect();
@@ -89,24 +92,63 @@ class DataStreamsService {
     }
 
     try {
-      const subscription = await this.sdk.streams.subscribe(
-        'EventLogged',
-        [dAppId],
-        (event: any) => {
-          callback(event);
-        }
-      );
+      // Subscribe to EventLogged event from the EventLogger contract
+      // Using the contract event name directly for proper event streaming
+      const initParams = {
+        somniaStreamsEventId: 'EventLogged', // The actual event name from the contract
+        ethCalls: [
+          {
+            to: this.config.contracts.EventLogger,
+            data: '0x', // Empty data to watch all events
+          }
+        ],
+        context: `events_dapp_${dAppId}`,
+        onData: (data: any) => {
+          console.log('📡 Data Streams - New EventLogged event:', data);
+          // Filter by dAppId if needed (data should contain the event parameters)
+          callback(data);
+        },
+        onlyPushChanges: true,
+      };
+
+      console.log('📡 Attempting to subscribe with params:', initParams);
+      const subscription = await this.sdk.streams.subscribe(initParams);
+
+      if (!subscription || typeof subscription.unsubscribe !== 'function') {
+        console.warn('⚠️ Data Streams subscription returned invalid object, falling back to polling');
+        // Return a dummy subscription ID - the hook will fall back to polling
+        const dummyId = `events_fallback_${dAppId}_${Date.now()}`;
+        this.subscriptions.set(dummyId, {
+          id: dummyId,
+          unsubscribe: () => {}, // No-op
+        });
+        return dummyId;
+      }
 
       const subscriptionId = `events_${dAppId}_${Date.now()}`;
       this.subscriptions.set(subscriptionId, {
         id: subscriptionId,
-        unsubscribe: () => subscription.unsubscribe(),
+        unsubscribe: () => {
+          try {
+            subscription.unsubscribe();
+          } catch (err) {
+            console.warn('Error unsubscribing:', err);
+          }
+        },
       });
 
+      console.log(`✓ Subscribed to EventLogged events for dApp ${dAppId}`);
       return subscriptionId;
     } catch (error) {
       console.error('Failed to subscribe to events:', error);
-      throw error;
+      console.warn('⚠️ Data Streams subscription failed, application will fall back to polling');
+      // Return a dummy subscription ID so the hook can continue with polling
+      const fallbackId = `events_error_${dAppId}_${Date.now()}`;
+      this.subscriptions.set(fallbackId, {
+        id: fallbackId,
+        unsubscribe: () => {}, // No-op
+      });
+      return fallbackId;
     }
   }
 
@@ -260,10 +302,15 @@ class DataStreamsService {
    */
   unsubscribe(subscriptionId: string): void {
     const subscription = this.subscriptions.get(subscriptionId);
-    if (subscription) {
-      subscription.unsubscribe();
-      this.subscriptions.delete(subscriptionId);
-      console.log(`✓ Unsubscribed from ${subscriptionId}`);
+    if (subscription && typeof subscription.unsubscribe === 'function') {
+      try {
+        subscription.unsubscribe();
+        this.subscriptions.delete(subscriptionId);
+        console.log(`✓ Unsubscribed from ${subscriptionId}`);
+      } catch (err) {
+        console.warn(`Error unsubscribing from ${subscriptionId}:`, err);
+        this.subscriptions.delete(subscriptionId);
+      }
     }
   }
 
@@ -272,7 +319,13 @@ class DataStreamsService {
    */
   unsubscribeAll(): void {
     this.subscriptions.forEach((subscription) => {
-      subscription.unsubscribe();
+      if (subscription && typeof subscription.unsubscribe === 'function') {
+        try {
+          subscription.unsubscribe();
+        } catch (err) {
+          console.warn('Error unsubscribing:', err);
+        }
+      }
     });
     this.subscriptions.clear();
     console.log('✓ Unsubscribed from all Data Streams');
