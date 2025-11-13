@@ -13,13 +13,19 @@ export function useRealTimeEvents(dAppId?: number, limit: number = 50) {
 
   const loadEvents = useCallback(async () => {
     if (!eventLogger || !isReady) {
+      console.log("loadEvents: eventLogger or isReady not available", { eventLogger: !!eventLogger, isReady });
       setIsLoading(false);
       return;
     }
 
     try {
       setIsLoading(true);
+      console.log("Fetching events for dAppId:", dAppId || 0, "limit:", limit);
       const allEvents = await eventLogger.getEventsByDApp(dAppId || 0, limit);
+      console.log("Fetched events:", allEvents.length, "events");
+      if (allEvents.length > 0) {
+        console.log("First event:", allEvents[0]);
+      }
       setEvents(allEvents);
       setError(null);
     } catch (err) {
