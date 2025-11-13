@@ -13,8 +13,9 @@ export const AnalyticsRegistryABI = [
 
 export const EventLoggerABI = [
   "function logEvent(uint256 dAppId, address user, string memory eventType, string memory eventData) external",
-  "function getEventsByDApp(uint256 dAppId, uint256 limit) external view returns (tuple(uint256 eventId, uint256 dAppId, address user, string eventType, string eventData, uint256 timestamp, uint256 blockNumber)[])",
-  "function getEventsByUser(address user, uint256 limit) external view returns (tuple(uint256 eventId, uint256 dAppId, address user, string eventType, string eventData, uint256 timestamp, uint256 blockNumber)[])",
+  "function getEventsByDApp(uint256 dAppId, uint256 limit) external view returns (uint256[])",
+  "function getEvents(uint256[] memory _eventIds) external view returns (tuple(uint256 eventId, uint256 dAppId, address user, string eventType, string eventData, uint256 timestamp, uint256 blockNumber)[])",
+  "function getEventsByUser(address user, uint256 limit) external view returns (uint256[])",
   "function getTotalEventCount() external view returns (uint256)",
   "event EventLogged(uint256 indexed eventId, uint256 indexed dAppId, address indexed user, string eventType, uint256 timestamp)",
 ] as const;
@@ -30,8 +31,8 @@ export const SessionManagerABI = [
 ] as const;
 
 export const MetricsAggregatorABI = [
-  "function getDailyMetrics(uint256 date) external view returns (tuple(uint256 date, uint256 activeUsers, uint256 totalTransactions, uint256 successfulTransactions, uint256 failedTransactions, uint256 totalGasUsed, uint256 uniqueUsers))",
-  "function getCurrentMetrics() external view returns (tuple(uint256 date, uint256 activeUsers, uint256 totalTransactions, uint256 successfulTransactions, uint256 failedTransactions, uint256 totalGasUsed, uint256 uniqueUsers))",
+  "function getDailyMetrics(uint256 dAppId, uint256 date) external view returns (tuple(uint256 date, uint256 activeUsers, uint256 totalTransactions, uint256 successfulTransactions, uint256 failedTransactions, uint256 totalGasUsed, uint256 uniqueUsers))",
+  "function getCurrentMetrics(uint256 dAppId) external view returns (uint256, uint256, uint256, uint256, uint256, uint256, uint256)",
   "function recordTransaction(uint256 dAppId, address user, bool success, uint256 gasUsed) external",
   "event MetricsUpdated(uint256 indexed date, uint256 totalTransactions, uint256 activeUsers)",
 ] as const;

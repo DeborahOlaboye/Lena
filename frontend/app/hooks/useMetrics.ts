@@ -3,80 +3,74 @@
 import { useState, useEffect, useCallback } from "react";
 import { useContractsSafe } from "./useContractsSafe";
 import { DailyMetrics } from "../types";
+import { dataStreamsService } from "../services/dataStreamsService";
+import { useRealTimeEvents } from "./useRealTimeEvents";
+import { SIMPLE_SWAP_DAPP_ID } from "../config/contracts";
 
 export function useMetrics() {
   const [metrics, setMetrics] = useState<DailyMetrics | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
-  const { metricsAggregator, isReady } = useContractsSafe();
 
-  const loadMetrics = useCallback(async () => {
-    if (!metricsAggregator || !isReady) {
-      console.log("loadMetrics: metricsAggregator or isReady not available", { metricsAggregator: !!metricsAggregator, isReady });
-      setIsLoading(false);
-      return;
-    }
+  // Get events from Data Streams
+  const { events, isLoading: eventsLoading } = useRealTimeEvents(SIMPLE_SWAP_DAPP_ID, 1000);
 
-    try {
-      setIsLoading(true);
-      console.log("Fetching current metrics...");
-      const currentMetrics = await metricsAggregator.getCurrentMetrics();
-      console.log("Fetched metrics:", currentMetrics);
-      setMetrics(currentMetrics);
-      setError(null);
-    } catch (err) {
-      console.error("Error loading metrics:", err);
-      setError(err as Error);
-      // Set default metrics on error
-      setMetrics({
-        date: BigInt(0),
-        activeUsers: BigInt(0),
-        totalTransactions: BigInt(0),
-        successfulTransactions: BigInt(0),
-        failedTransactions: BigInt(0),
-        totalGasUsed: BigInt(0),
-        uniqueUsers: BigInt(0),
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  }, [metricsAggregator, isReady]);
-
+  // Calculate metrics from events in real-time
   useEffect(() => {
-    if (!metricsAggregator || !isReady) {
-      setIsLoading(false);
+    if (eventsLoading) {
+      setIsLoading(true);
       return;
     }
 
-    loadMetrics();
+    console.log('📊 Calculating metrics from', events.length, 'events');
 
-    // Listen for metrics updates
     try {
-      const filter = metricsAggregator.filters.MetricsUpdated();
-      metricsAggregator.on(filter, () => {
-        loadMetrics();
+      // Calculate metrics from events
+      const uniqueUsersSet = new Set<string>();
+      let totalTx = 0;
+      let successfulTx = 0;
+
+      events.forEach((event) => {
+        uniqueUsersSet.add(event.user.toLowerCase());
+        totalTx++;
+        successfulTx++; // Assume all logged events are successful
       });
+
+      const calculatedMetrics: DailyMetrics = {
+        date: BigInt(Math.floor(Date.now() / 1000 / 86400) * 86400), // Today's timestamp
+        activeUsers: BigInt(uniqueUsersSet.size),
+        totalTransactions: BigInt(totalTx),
+        successfulTransactions: BigInt(successfulTx),
+        failedTransactions: BigInt(0),
+        totalGasUsed: BigInt(0), // Would need gas data from events
+        uniqueUsers: BigInt(uniqueUsersSet.size),
+      };
+
+      console.log('✅ Calculated metrics:', {
+        activeUsers: calculatedMetrics.activeUsers.toString(),
+        totalTransactions: calculatedMetrics.totalTransactions.toString(),
+        uniqueUsers: calculatedMetrics.uniqueUsers.toString(),
+      });
+
+      setMetrics(calculatedMetrics);
+      setError(null);
+      setIsLoading(false);
     } catch (err) {
-      console.error("Error setting up metrics listener:", err);
+      console.error("Error calculating metrics:", err);
+      setError(err as Error);
+      setIsLoading(false);
     }
+  }, [events, eventsLoading]);
 
-    // Refresh every 30 seconds
-    const interval = setInterval(loadMetrics, 30000);
-
-    return () => {
-      try {
-        metricsAggregator.removeAllListeners();
-      } catch (err) {
-        console.error("Error removing listeners:", err);
-      }
-      clearInterval(interval);
-    };
-  }, [metricsAggregator, isReady, loadMetrics]);
+  const refresh = useCallback(() => {
+    // Metrics will auto-refresh when events update
+    console.log('Metrics refresh triggered (auto-updates with events)');
+  }, []);
 
   return {
     metrics,
     isLoading,
     error,
-    refresh: loadMetrics,
+    refresh,
   };
 }
