@@ -12,13 +12,16 @@ export function useMetrics() {
 
   const loadMetrics = useCallback(async () => {
     if (!metricsAggregator || !isReady) {
+      console.log("loadMetrics: metricsAggregator or isReady not available", { metricsAggregator: !!metricsAggregator, isReady });
       setIsLoading(false);
       return;
     }
 
     try {
       setIsLoading(true);
+      console.log("Fetching current metrics...");
       const currentMetrics = await metricsAggregator.getCurrentMetrics();
+      console.log("Fetched metrics:", currentMetrics);
       setMetrics(currentMetrics);
       setError(null);
     } catch (err) {

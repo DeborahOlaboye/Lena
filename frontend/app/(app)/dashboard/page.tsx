@@ -8,12 +8,21 @@ import { formatNumber, formatTimeAgo, calculateSuccessRate, formatAddress } from
 import { SIMPLE_SWAP_DAPP_ID } from "../../config/contracts";
 
 export default function DashboardPage() {
-  const { metrics, isLoading: metricsLoading } = useMetrics();
-  const { events, isLoading: eventsLoading } = useRealTimeEvents(SIMPLE_SWAP_DAPP_ID, 20);
+  const { metrics, isLoading: metricsLoading, error: metricsError } = useMetrics();
+  const { events, isLoading: eventsLoading, error: eventsError } = useRealTimeEvents(SIMPLE_SWAP_DAPP_ID, 20);
 
   const successRate = metrics
     ? calculateSuccessRate(metrics.successfulTransactions, metrics.totalTransactions)
     : 0;
+
+  console.log("Dashboard render:", {
+    metrics,
+    metricsLoading,
+    metricsError,
+    events: events.length,
+    eventsLoading,
+    eventsError
+  });
 
   return (
     <div className="space-y-6">
@@ -26,6 +35,26 @@ export default function DashboardPage() {
           Real-time insights powered by Somnia blockchain
         </p>
       </div>
+
+      {/* Info Banner - No Data */}
+      {(!metricsLoading && metrics && metrics.totalTransactions === BigInt(0)) && (
+        <div className="rounded-xl border border-blue-200 bg-blue-50 p-6 dark:border-blue-900 dark:bg-blue-900/20">
+          <h3 className="font-semibold text-blue-900 dark:text-blue-300">
+            📊 No Analytics Data Yet
+          </h3>
+          <p className="mt-2 text-sm text-blue-800 dark:text-blue-300">
+            Analytics data will appear here once you perform transactions on the SimpleSwap demo. Try these actions:
+          </p>
+          <ul className="mt-3 list-disc list-inside text-sm text-blue-800 dark:text-blue-300 space-y-1">
+            <li>Go to the <a href="/swap" className="underline font-medium">Swap page</a> and add liquidity to the pool</li>
+            <li>Perform a token swap</li>
+            <li>Check back here to see real-time analytics!</li>
+          </ul>
+          <p className="mt-3 text-xs text-blue-700 dark:text-blue-400">
+            💡 Tip: Open browser console (F12) to see debug logs from the analytics system.
+          </p>
+        </div>
+      )}
 
       {/* Metrics Grid */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
