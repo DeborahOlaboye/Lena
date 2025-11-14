@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Activity } from "lucide-react";
 import { DataStreamsStatus } from "./DataStreamsStatus";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 
@@ -17,13 +16,11 @@ export function Navbar() {
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
         {/* Logo */}
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-purple-600">
-            <Activity className="h-6 w-6 text-white" />
+          <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-lg bg-white dark:bg-gray-900">
+            <img src="/logo.svg" alt="Lena Logo" className="h-8 w-8" />
           </div>
           <div>
-            <h1 className="text-lg font-bold text-gray-900 dark:text-white">
-              Somnia Analytics
-            </h1>
+            <h1 className="text-lg font-bold text-gray-900 dark:text-white">Lena</h1>
             <p className="text-xs text-gray-500 dark:text-gray-400">
               Real-Time DApp Insights
             </p>

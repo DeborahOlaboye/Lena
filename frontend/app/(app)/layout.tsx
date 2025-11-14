@@ -1,5 +1,6 @@
 import { Navbar } from "../components/Navbar";
 import { Sidebar } from "../components/Sidebar";
+import { ConnectionGuard } from "../components/ConnectionGuard";
 
 export default function AppLayout({
   children,
@@ -11,7 +12,9 @@ export default function AppLayout({
       <Navbar />
       <div className="flex flex-1">
         <Sidebar />
-        <main className="flex-1 p-6">{children}</main>
+        <main className="flex-1 p-6">
+          <ConnectionGuard>{children}</ConnectionGuard>
+        </main>
       </div>
     </div>
   );

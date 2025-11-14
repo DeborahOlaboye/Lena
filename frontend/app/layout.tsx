@@ -14,8 +14,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Somnia Analytics - Real-Time DApp Insights",
+  title: "Lena",
   description: "Real-time analytics platform for DApps built on Somnia blockchain",
+  icons: { icon: "/logo.svg" },
 };
 
 export default function RootLayout({
