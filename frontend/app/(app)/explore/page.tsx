@@ -196,21 +196,21 @@ export default function ExplorePage() {
               title="Total Transactions"
               value={analytics.totalTransactions.toString()}
               icon={Activity}
-              color="cyan"
+              color="blue"
               subtitle="All time"
             />
             <MetricCard
               title="Unique Users"
               value={analytics.uniqueUsers.toString()}
               icon={Users}
-              color="teal"
+              color="green"
               subtitle="Interacted with contract"
             />
             <MetricCard
               title="Total Value"
               value={`${parseFloat(analytics.totalValue).toFixed(4)} STT`}
               icon={TrendingUp}
-              color="ocean"
+              color="purple"
               subtitle="Transferred through contract"
             />
           </div>
