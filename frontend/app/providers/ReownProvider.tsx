@@ -8,7 +8,7 @@ import { ReownAppKitProvider } from "@reown/appkit";
 import { createWagmiAdapter } from "@reown/appkit-adapter-wagmi";
 
 // Create wagmi config
-export const config = createConfig({
+const config = createConfig({
   chains: [somniaNetwork as any],
   transports: {
     [somniaNetwork.id]: http(somniaNetwork.rpcUrls.default.http[0]),
@@ -36,7 +36,7 @@ const appKitConfig = {
   },
 };
 
-export function Web3Provider({ children }: { children: React.ReactNode }) {
+export function ReownProvider({ children }: { children: React.ReactNode }) {
   return (
     <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>
@@ -56,12 +56,6 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
               success: {
                 iconTheme: {
                   primary: "#10b981",
-                  secondary: "#fff",
-                },
-              },
-              error: {
-                iconTheme: {
-                  primary: "#ef4444",
                   secondary: "#fff",
                 },
               },
