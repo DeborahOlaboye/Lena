@@ -4,7 +4,7 @@ import { createConfig, http, WagmiProvider } from "wagmi";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { somniaNetwork } from "../config/contracts";
 import { Toaster } from "react-hot-toast";
-import { AppKit } from "@reown/appkit";
+import { AppKitProvider } from "@reown/appkit/react";
 import { WagmiAdapter } from "@reown/appkit-adapter-wagmi";
 
 // Create wagmi config
@@ -45,9 +45,10 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
   return (
     <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>
-        <AppKit
-          config={appKitConfig}
-          adapter={wagmiAdapter}
+        <AppKitProvider
+          {...appKitConfig}
+          networks={[somniaNetwork as any]}
+          adapters={[wagmiAdapter]}
         >
           {children}
           <Toaster
@@ -72,7 +73,7 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
               },
             }}
           />
-  </AppKit>
+    </AppKitProvider>
       </QueryClientProvider>
     </WagmiProvider>
   );
