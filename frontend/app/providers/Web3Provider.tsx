@@ -4,8 +4,8 @@ import { createConfig, http, WagmiProvider } from "wagmi";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { somniaNetwork } from "../config/contracts";
 import { Toaster } from "react-hot-toast";
-import { ReownAppKitProvider } from "@reown/appkit";
-import { createWagmiAdapter } from "@reown/appkit-adapter-wagmi";
+import { AppKitProvider } from "@reown/appkit/react";
+import { WagmiAdapter } from "@reown/appkit-adapter-wagmi";
 
 // Create wagmi config
 export const config = createConfig({
@@ -37,12 +37,18 @@ const appKitConfig = {
 };
 
 export function Web3Provider({ children }: { children: React.ReactNode }) {
+  // Instantiate the wagmi adapter using the same network(s) and projectId used in config
+  const wagmiAdapter = new WagmiAdapter({
+    networks: [somniaNetwork as any],
+    projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "demo",
+  });
   return (
     <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>
-        <ReownAppKitProvider 
-          config={appKitConfig}
-          adapter={createWagmiAdapter()}
+        <AppKitProvider
+          {...appKitConfig}
+          networks={[somniaNetwork as any]}
+          adapters={[wagmiAdapter]}
         >
           {children}
           <Toaster
@@ -67,7 +73,7 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
               },
             }}
           />
-        </ReownAppKitProvider>
+    </AppKitProvider>
       </QueryClientProvider>
     </WagmiProvider>
   );

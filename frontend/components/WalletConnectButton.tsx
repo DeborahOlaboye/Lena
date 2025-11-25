@@ -1,21 +1,19 @@
 "use client";
 
 import { useAccount, useDisconnect } from "wagmi";
-import { useReown } from "@reown/appkit";
-import { Button } from "./ui/button";
+import { AppKitConnectButton } from "@reown/appkit/react";
 import { LogOut, Wallet } from "lucide-react";
 
 export function WalletConnectButton() {
   const { isConnected, address } = useAccount();
   const { disconnect } = useDisconnect();
-  const { openConnectModal } = useReown();
 
   if (!isConnected) {
     return (
-      <Button onClick={openConnectModal} className="gap-2">
+      <AppKitConnectButton className="gap-2 inline-flex items-center px-3 py-2 rounded-md">
         <Wallet className="w-4 h-4" />
         Connect Wallet
-      </Button>
+      </AppKitConnectButton>
     );
   }
 
@@ -26,9 +24,13 @@ export function WalletConnectButton() {
       <div className="px-3 py-1.5 text-sm font-medium rounded-md bg-gray-100 dark:bg-gray-800">
         {shortenedAddress}
       </div>
-      <Button variant="outline" size="icon" onClick={() => disconnect()}>
+      <button
+        onClick={() => disconnect()}
+        className="inline-flex items-center justify-center h-8 w-8 rounded-md border border-gray-200 dark:border-gray-700"
+        aria-label="Disconnect"
+      >
         <LogOut className="w-4 h-4" />
-      </Button>
+      </button>
     </div>
   );
 }
