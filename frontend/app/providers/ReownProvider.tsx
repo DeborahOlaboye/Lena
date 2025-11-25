@@ -4,8 +4,8 @@ import { createConfig, http, WagmiProvider } from "wagmi";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { somniaNetwork } from "../config/contracts";
 import { Toaster } from "react-hot-toast";
-import { ReownAppKitProvider } from "@reown/appkit";
-import { createWagmiAdapter } from "@reown/appkit-adapter-wagmi";
+import { AppKit } from "@reown/appkit";
+import { WagmiAdapter } from "@reown/appkit-adapter-wagmi";
 
 // Create wagmi config
 const config = createConfig({
@@ -37,12 +37,16 @@ const appKitConfig = {
 };
 
 export function ReownProvider({ children }: { children: React.ReactNode }) {
+  const wagmiAdapter = new WagmiAdapter({
+    networks: [somniaNetwork as any],
+    projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "demo",
+  });
   return (
     <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>
-        <ReownAppKitProvider 
+        <AppKit
           config={appKitConfig}
-          adapter={createWagmiAdapter()}
+          adapter={wagmiAdapter}
         >
           {children}
           <Toaster
@@ -61,7 +65,7 @@ export function ReownProvider({ children }: { children: React.ReactNode }) {
               },
             }}
           />
-        </ReownAppKitProvider>
+  </AppKit>
       </QueryClientProvider>
     </WagmiProvider>
   );
