@@ -1,15 +1,10 @@
 # Somnia Real-Time DApp Analytics Platform
 
-[![Somnia](https://img.shields.io/badge/Built%20on-Somnia-blue)](https://somnia.network)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue)](https://www.typescriptlang.org/)
-[![Solidity](https://img.shields.io/badge/Solidity-0.8.20-orange)](https://soliditylang.org/)
-
 > **Real-time dApp analytics with sub-second latency powered by Somnia Data Streams SDK**
 
 A production-ready analytics platform that enables dApp developers to track user behavior, monitor performance, and gain instant insights with **<1 second latency** - impossible to achieve without Somnia's Data Streams technology.
 
-## 🎯 The Problem
+## The Problem
 
 Traditional blockchain analytics suffer from significant delays:
 - Block confirmations take 12+ seconds
@@ -18,20 +13,20 @@ Traditional blockchain analytics suffer from significant delays:
 - Delayed insights impact decision-making
 - Poor user experience due to data staleness
 
-## 💡 The Solution
+## The Solution
 
 Our platform leverages **Somnia Data Streams SDK** to deliver:
-- ⚡ **<1 second latency** - See events as they happen
-- 📊 **Real-time metrics** - Active users, success rates, gas usage
-- 🗺️ **User journey tracking** - Understand user flows instantly
-- 🔔 **Live alerts** - Get notified of critical events immediately
-- 📈 **Interactive dashboards** - Monitor your dApp in real-time
+- **<1 second latency** - See events as they happen
+- **Real-time metrics** - Active users, success rates, gas usage
+- **User journey tracking** - Understand user flows instantly
+- **Live alerts** - Get notified of critical events immediately
+- **Interactive dashboards** - Monitor your dApp in real-time
 
 **This is impossible without Data Streams.** Traditional approaches would require polling, manual indexing, or waiting for block confirmations - all adding seconds or minutes of delay.
 
 ---
 
-## ✨ Key Features
+## Key Features
 
 ### Real-Time Analytics Dashboard
 - **Live Metrics**: Active users, transactions, success rates, gas usage
@@ -73,7 +68,7 @@ Our platform leverages **Somnia Data Streams SDK** to deliver:
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -115,8 +110,7 @@ Our platform leverages **Somnia Data Streams SDK** to deliver:
 ```
 
 ---
-
-## 🚀 Tech Stack
+## Tech Stack
 
 ### Smart Contracts
 - **Solidity** 0.8.20 - Smart contract language
@@ -141,103 +135,7 @@ Our platform leverages **Somnia Data Streams SDK** to deliver:
 
 ---
 
-## 📦 Installation
-
-### Prerequisites
-- Node.js 18+ and npm/yarn
-- MetaMask or compatible Web3 wallet
-- Somnia testnet tokens (get from Discord)
-
-### 1. Clone Repository
-```bash
-git clone https://github.com/yourusername/somnia-analytics-platform.git
-cd somnia-analytics-platform
-```
-
-### 2. Install Smart Contract Dependencies
-```bash
-cd contracts
-npm install
-```
-
-### 3. Install Frontend Dependencies
-```bash
-cd ../frontend
-npm install
-```
-
-### 4. Configure Environment Variables
-
-**Contracts** (`contracts/.env`):
-```env
-PRIVATE_KEY=your_wallet_private_key_here
-SOMNIA_RPC_URL=https://dream-rpc.somnia.network
-```
-
-**Frontend** (`frontend/.env`):
-```env
-VITE_ANALYTICS_REGISTRY_ADDRESS=0x...
-VITE_EVENT_LOGGER_ADDRESS=0x...
-VITE_SESSION_MANAGER_ADDRESS=0x...
-VITE_METRICS_AGGREGATOR_ADDRESS=0x...
-VITE_SIMPLE_SWAP_ADDRESS=0x...
-```
-
----
-
-## 🎮 Usage
-
-### Deploy Smart Contracts
-
-```bash
-cd contracts
-
-# Compile contracts
-npm run compile
-
-# Run tests (72 tests, >80% coverage)
-npm test
-
-# Deploy to Somnia Testnet
-npm run deploy:somnia
-```
-
-Deployment saves contract addresses to `contracts/deployments/deployment-50311-latest.json`
-
-### Run Frontend
-
-```bash
-cd frontend
-
-# Start development server
-npm run dev
-# Opens at http://localhost:5173
-
-# Build for production
-npm run build
-
-# Preview production build
-npm run preview
-```
-
-### Add Somnia Testnet to MetaMask
-
-1. Open MetaMask
-2. Networks → Add Network
-3. Enter details:
-   - **Network Name**: Somnia Testnet
-   - **RPC URL**: https://dream-rpc.somnia.network
-   - **Chain ID**: 50311
-   - **Currency Symbol**: STT
-   - **Block Explorer**: https://explorer-test.somnia.network
-
-### Get Test Tokens
-
-Join [Somnia Discord](https://discord.gg/somnia) and request testnet tokens in #faucet channel.
-
----
-
-## 📚 How Data Streams Powers Real-Time Analytics
+## How Data Streams Powers Real-Time Analytics
 
 ### Without Data Streams ❌
 ```
@@ -297,7 +195,7 @@ const { events, isConnected } = useRealTimeEvents({
 
 ---
 
-## 🔗 Smart Contract Addresses (Somnia Testnet)
+## Smart Contract Addresses (Somnia Testnet)
 
 | Contract | Address | Explorer |
 |----------|---------|----------|
@@ -309,7 +207,7 @@ const { events, isConnected } = useRealTimeEvents({
 
 ---
 
-## 📊 Testing
+## Testing
 
 ### Smart Contract Tests
 
@@ -330,16 +228,9 @@ npm test
 - MetricsAggregator (14 tests)
 - SimpleSwap (29 tests)
 
-### Frontend Testing
-
-```bash
-cd frontend
-npm run lint  # ESLint checks
-```
-
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 somnia-analytics-platform/
@@ -382,50 +273,7 @@ somnia-analytics-platform/
 
 ---
 
-## 🗺️ Roadmap
-
-### Phase 1: Environment Setup ✅
-- [x] Project structure
-- [x] Hardhat configuration
-- [x] Frontend setup with Vite + React + TypeScript
-
-### Phase 2: Smart Contracts ✅
-- [x] 5 production-ready contracts
-- [x] 72 comprehensive tests
-- [x] Deployment scripts
-
-### Phase 3: Data Streams Integration ✅
-- [x] SDK setup and configuration
-- [x] DataStreamsService implementation
-- [x] Real-time React hooks
-
-### Phase 4: Frontend Development ✅
-- [x] Dashboard components
-- [x] User journey visualizer
-- [x] DApp registration interface
-- [x] Demo swap interface
-- [x] Alerts system
-- [x] Data export feature
-
-### Phase 5: Integration & Testing ✅
-- [x] Contract service integration
-- [x] Wallet connection management
-- [x] Gas estimation and error handling
-
-### Phase 6: Documentation & Demo (In Progress)
-- [x] Comprehensive README
-- [ ] Technical documentation
-- [ ] Demo video
-- [ ] Production deployment
-
-### Phase 7: Hackathon Submission (Pending)
-- [ ] GitHub repository cleanup
-- [ ] Submission materials
-- [ ] Final testing
-
----
-
-## 💼 Use Cases
+## Use Cases
 
 ### For DeFi Projects
 - Monitor swap volumes in real-time
@@ -447,7 +295,7 @@ somnia-analytics-platform/
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
 We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
@@ -459,13 +307,13 @@ We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guid
 
 ---
 
-## 📄 License
+## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ---
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 - **Somnia Network** - For the incredible Data Streams SDK that makes real-time analytics possible
 - **OpenZeppelin** - For battle-tested smart contract libraries
@@ -473,27 +321,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **The Ethereum Community** - For continuous innovation
 
 ---
-
-## 📞 Contact & Links
-
-- **Documentation**: [Full Docs](docs/)
-- **Discord**: [Join Community](https://discord.gg/somnia)
-- **Issues**: [GitHub Issues](https://github.com/yourusername/somnia-analytics-platform/issues)
-
----
-
-## 🎯 Why This Project Wins
-
-1. **Impossible Without Data Streams**: Our <1 second latency is only achievable with Somnia's technology
-2. **Production Ready**: 72 passing tests, comprehensive error handling, optimized performance
-3. **Real Value**: Solves actual developer pain point (delayed analytics)
-4. **Complete Implementation**: Not a prototype - fully functional end-to-end platform
-5. **Beautiful UX**: Professional design, smooth animations, intuitive interface
-6. **Scalable Architecture**: Clean separation of concerns, reusable components
-7. **Well Documented**: Comprehensive docs, inline comments, clear setup instructions
-
----
-
 <div align="center">
 
 **Built with ❤️ for the Somnia Hackathon**
