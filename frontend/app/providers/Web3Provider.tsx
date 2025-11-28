@@ -1,19 +1,11 @@
 "use client";
 
-import { createConfig, http, WagmiProvider } from "wagmi";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { somniaNetwork } from "../config/contracts";
-import { Toaster } from "react-hot-toast";
-import { AppKitProvider } from "@reown/appkit/react";
-import { WagmiAdapter } from "@reown/appkit-adapter-wagmi";
-
-// Create wagmi config
-export const config = createConfig({
-  chains: [somniaNetwork as any],
-  transports: {
-    [somniaNetwork.id]: http(somniaNetwork.rpcUrls.default.http[0]),
-  },
-});
+import { WagmiProvider } from 'wagmi';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { RainbowKitProvider, darkTheme } from '@rainbow-me/rainbowkit';
+import { somniaNetwork } from '../config/contracts';
+import { Toaster } from 'react-hot-toast';
+import { web3modal } from './Web3Modal';
 
 // Create query client
 const queryClient = new QueryClient({
@@ -25,30 +17,19 @@ const queryClient = new QueryClient({
   },
 });
 
-// Create Reown AppKit config
-const appKitConfig = {
-  projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "demo",
-  metadata: {
-    name: "Somnia Analytics",
-    description: "Somnia Analytics Dashboard",
-    url: "https://somnia.xyz",
-    icons: ["https://somnia.xyz/icon.png"],
-  },
-};
-
 export function Web3Provider({ children }: { children: React.ReactNode }) {
-  // Instantiate the wagmi adapter using the same network(s) and projectId used in config
-  const wagmiAdapter = new WagmiAdapter({
-    networks: [somniaNetwork as any],
-    projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "demo",
-  });
   return (
-    <WagmiProvider config={config}>
+    <WagmiProvider config={web3modal.config}>
       <QueryClientProvider client={queryClient}>
-        <AppKitProvider
-          {...appKitConfig}
-          networks={[somniaNetwork as any]}
-          adapters={[wagmiAdapter]}
+        <RainbowKitProvider
+          theme={darkTheme({
+            accentColor: '#4F46E5',
+            accentColorForeground: 'white',
+            borderRadius: 'medium',
+            fontStack: 'rounded',
+            overlayBlur: 'small',
+          })}
+          modalSize="compact"
         >
           {children}
           <Toaster
@@ -73,7 +54,7 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
               },
             }}
           />
-    </AppKitProvider>
+        </RainbowKitProvider>
       </QueryClientProvider>
     </WagmiProvider>
   );
