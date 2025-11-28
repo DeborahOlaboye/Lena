@@ -24,7 +24,7 @@ const wagmiConfig = defaultWagmiConfig({
 });
 
 // Create modal
-export const web3modal = createWeb3Modal({
+createWeb3Modal({
   wagmiConfig,
   projectId,
   enableAnalytics: true,
@@ -35,4 +35,5 @@ export const web3modal = createWeb3Modal({
   },
 });
 
-export { Web3Modal } from '@web3modal/wagmi/react';
+// Web3Modal is now automatically available through the context
+// No need to export it directly
