@@ -9,9 +9,9 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "@rainbow-me/rainbowkit": "^2.2.9",
     "@reown/appkit": "^1.8.14",
     "@reown/appkit-adapter-wagmi": "^1.8.14",
+    "@reown/appkit-wagmi": "^1.8.14",
     "@somnia-chain/streams": "^0.9.5",
     "@tanstack/react-query": "^5.90.11",
     "@web3modal/ethereum": "^2.7.1",
