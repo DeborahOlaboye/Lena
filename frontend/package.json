@@ -14,6 +14,7 @@
     "@somnia-chain/streams": "^0.9.5",
     "@tanstack/react-query": "^5.90.11",
     "@web3modal/ethereum": "^2.7.1",
+    "@web3modal/ethers": "^5.1.11",
     "@web3modal/wagmi": "^5.1.11",
     "clsx": "^2.1.1",
     "ethers": "^6.15.0",
