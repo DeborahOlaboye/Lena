@@ -22,29 +22,26 @@ const metadata = {
   icons: ['/logo.png']
 };
 
-// Ensure we have a valid chain configuration
-const chains = [somniaNetwork, mainnet, sepolia];
+// Ensure we have a valid chain configuration with proper typing
+const chains = [somniaNetwork as any, mainnet, sepolia];
 
 // Create wagmi config
 const wagmiConfig = defaultWagmiConfig({ 
   projectId, 
-  chains,
+  chains: [somniaNetwork as any, mainnet, sepolia],
   metadata,
-  // Remove enableEmail as it's not supported in this version
 });
 
 // 3. Create modal
 createWeb3Modal({
   wagmiConfig,
   projectId,
-  // Remove chains from here as it's not needed
   themeMode: 'dark',
   themeVariables: {
     '--w3m-color-mix': '#4F46E5',
-    '--w3m-color-mix-strength': '20',
+    '--w3m-color-mix-strength': 20, // Ensure this is a number, not a string
     '--w3m-accent': '#4F46E5',
   },
-  // Remove featuredWalletIds as it's not needed
   enableAnalytics: true,
   enableOnramp: true,
 });
