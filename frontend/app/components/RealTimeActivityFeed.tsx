@@ -1,8 +1,8 @@
 "use client";
 
-import { Activity, Clock, User, CheckCircle, XCircle, Clock as ClockIcon } from "lucide-react";
+import { Activity, Clock, User, CheckCircle, XCircle, Clock as ClockIcon, Zap, ArrowUpDown } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useMemo } from "react";
 import { AnalyticsEvent } from "../types";
 
 type RealTimeActivityFeedProps = {
@@ -10,6 +10,26 @@ type RealTimeActivityFeedProps = {
   isLoading: boolean;
   error: Error | null;
   maxItems?: number;
+};
+
+type EventStatus = "success" | "failed" | "pending";
+
+const getEventIcon = (eventType: string) => {
+  switch (eventType.toLowerCase()) {
+    case 'swap':
+      return <ArrowUpDown className="h-4 w-4 text-blue-500" />;
+    case 'addliquidity':
+    case 'removeliquidity':
+      return <Zap className="h-4 w-4 text-purple-500" />;
+    default:
+      return <Activity className="h-4 w-4 text-gray-500" />;
+  }
+};
+
+const getStatusFromEvent = (event: AnalyticsEvent): EventStatus => {
+  // This is a simplified example - you might want to implement more sophisticated logic
+  // based on your application's requirements
+  return 'success'; // Default to success for now
 };
 
 export function RealTimeActivityFeed({
@@ -21,7 +41,14 @@ export function RealTimeActivityFeed({
   const containerRef = useRef<HTMLDivElement>(null);
   const prevEventsLength = useRef(events.length);
 
-  // Auto-scroll to bottom when new events arrive
+  // Sort events by timestamp in descending order (newest first)
+  const sortedEvents = useMemo(() => {
+    return [...events].sort((a, b) => 
+      Number(a.timestamp) - Number(b.timestamp)
+    ).slice(0, maxItems);
+  }, [events, maxItems]);
+
+  // Auto-scroll to bottom when new events come in
   useEffect(() => {
     if (events.length > prevEventsLength.current && containerRef.current) {
       containerRef.current.scrollTop = containerRef.current.scrollHeight;
@@ -29,12 +56,18 @@ export function RealTimeActivityFeed({
     prevEventsLength.current = events.length;
   }, [events.length]);
 
-  // Format event type to be more readable
+  const formatTimestamp = (timestamp: bigint) => {
+    // Convert BigInt timestamp (in seconds) to milliseconds for date-fns
+    const date = new Date(Number(timestamp) * 1000);
+    return formatDistanceToNow(date, { addSuffix: true });
+  };
+
   const formatEventType = (eventType: string) => {
     return eventType
-      .split('_')
-      .map(word => word.charAt(0) + word.slice(1).toLowerCase())
-      .join(' ');
+      .replace(/([A-Z])/g, ' $1') // Add space before capital letters
+      .replace(/_/g, ' ') // Replace underscores with spaces
+      .replace(/^./, str => str.toUpperCase()) // Capitalize first letter
+      .trim();
   };
 
   // Get status based on event type or random for demo
@@ -127,11 +160,6 @@ export function RealTimeActivityFeed({
     }
   };
 
-  // Sort events by timestamp in descending order (newest first)
-  const sortedEvents = [...events]
-    .sort((a, b) => Number(b.timestamp) - Number(a.timestamp))
-    .slice(0, maxItems);
-
   return (
     <div className="rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
       <div className="border-b border-gray-200 px-6 py-4 dark:border-gray-800">
@@ -159,24 +187,25 @@ export function RealTimeActivityFeed({
           className="max-h-[500px] overflow-y-auto p-2"
         >
           {isLoading ? (
-            <div className="flex h-32 items-center justify-center">
-              <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-500 border-t-transparent" />
+            <div className="flex h-64 items-center justify-center rounded-lg border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">
+              <div className="flex flex-col items-center">
+                <div className="h-10 w-10 animate-spin rounded-full border-4 border-blue-500 border-t-transparent"></div>
+                <p className="mt-4 text-sm text-gray-600 dark:text-gray-400">Loading activity...</p>
+              </div>
             </div>
           ) : error ? (
-            <div className="p-6 text-center text-red-500">
-              <p>Error loading events. Please try again.</p>
-              <p className="mt-1 text-xs text-red-400">{error.message}</p>
+            <div className="rounded-lg border border-red-200 bg-red-50 p-6 dark:border-red-900 dark:bg-red-900/20">
+              <div className="flex items-center gap-3 text-red-700 dark:text-red-300">
+                <XCircle className="h-5 w-5" />
+                <p>Error loading activity feed: {error.message}</p>
+              </div>
             </div>
           ) : sortedEvents.length === 0 ? (
-            <div className="flex flex-col items-center justify-center p-8 text-center">
-              <div className="mb-3 rounded-full bg-gray-100 p-3 dark:bg-gray-800">
-                <Activity className="h-6 w-6 text-gray-400" />
-              </div>
-              <h3 className="text-sm font-medium text-gray-900 dark:text-white">
-                No activity yet
-              </h3>
-              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                Events will appear here as they happen
+            <div className="flex h-64 flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-300 p-6 text-center dark:border-gray-700">
+              <Activity className="mb-4 h-12 w-12 text-gray-400" />
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white">No activity yet</h3>
+              <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                Activity will appear here when you start using the application.
               </p>
             </div>
           ) : (
