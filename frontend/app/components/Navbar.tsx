@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { DataStreamsStatus } from "./DataStreamsStatus";
-import { ConnectButton } from '@reown/appkit-wagmi';
+import { Web3Button } from '@web3modal/ethers/react';
 
 export function Navbar() {
   const [mounted, setMounted] = useState(false);
@@ -42,15 +42,12 @@ export function Navbar() {
 
           {/* Wallet Connection */}
           {mounted && (
-            <ConnectButton
-              theme="dark"
-              style={{
-                backgroundColor: '#4F46E5',
-                color: 'white',
-                borderRadius: '8px',
-                padding: '8px 16px',
-                fontWeight: 500,
-              }}
+            <Web3Button 
+              label="Connect Wallet"
+              icon="hide"
+              balance="hide"
+              avatar="hide"
+              className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-lg transition-colors duration-200"
             />
           )}
         </div>
