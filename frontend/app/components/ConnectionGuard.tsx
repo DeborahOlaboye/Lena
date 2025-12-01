@@ -1,7 +1,7 @@
 "use client";
 
-import { useAccount } from "wagmi";
-import { ConnectButton } from "@rainbow-me/rainbowkit";
+import { useAccount } from 'wagmi';
+import { ConnectButton } from '@reown/appkit-wagmi';
 
 export function ConnectionGuard({ children }: { children: React.ReactNode }) {
   const { isConnected } = useAccount();
@@ -19,7 +19,16 @@ export function ConnectionGuard({ children }: { children: React.ReactNode }) {
           Please connect to access this page.
         </p>
         <div className="mt-5 flex justify-center">
-          <ConnectButton />
+          <ConnectButton
+            theme="dark"
+            style={{
+              backgroundColor: '#4F46E5',
+              color: 'white',
+              borderRadius: '8px',
+              padding: '8px 16px',
+              fontWeight: 500,
+            }}
+          />
         </div>
       </div>
     </div>

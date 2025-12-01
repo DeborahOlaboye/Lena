@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { DataStreamsStatus } from "./DataStreamsStatus";
-import { ConnectButton } from "@rainbow-me/rainbowkit";
+import { ConnectButton } from '@reown/appkit-wagmi';
 
 export function Navbar() {
   const [mounted, setMounted] = useState(false);
@@ -40,8 +40,19 @@ export function Navbar() {
             </span>
           </div>
 
-          {/* RainbowKit Wallet Connection */}
-          {mounted && <ConnectButton />}
+          {/* Wallet Connection */}
+          {mounted && (
+            <ConnectButton
+              theme="dark"
+              style={{
+                backgroundColor: '#4F46E5',
+                color: 'white',
+                borderRadius: '8px',
+                padding: '8px 16px',
+                fontWeight: 500,
+              }}
+            />
+          )}
         </div>
       </div>
     </nav>
