@@ -3,18 +3,10 @@
 import { Activity, Clock, User, CheckCircle, XCircle, Clock as ClockIcon } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useEffect, useRef } from "react";
-
-type Event = {
-  eventId: string | number;
-  eventType: string;
-  user: string;
-  timestamp: number;
-  blockNumber: number | string;
-  status?: "success" | "failed" | "pending";
-};
+import { AnalyticsEvent } from "../types";
 
 type RealTimeActivityFeedProps = {
-  events: Event[];
+  events: AnalyticsEvent[];
   isLoading: boolean;
   error: Error | null;
   maxItems?: number;
