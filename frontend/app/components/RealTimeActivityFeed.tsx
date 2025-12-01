@@ -70,14 +70,37 @@ export function RealTimeActivityFeed({
       .trim();
   };
 
-  // Get status based on event type or random for demo
-  const getStatus = (eventType: string): "success" | "failed" | "pending" => {
-    if (eventType.includes('FAILED')) return 'failed';
-    if (eventType.includes('PENDING')) return 'pending';
-    return Math.random() > 0.1 ? 'success' : 'failed';
+  // Format address to show first and last 4 characters
+  const formatAddress = (address: string) => {
+    if (!address) return '';
+    return `${address.substring(0, 6)}...${address.substring(address.length - 4)}`;
   };
 
-  // Format address to show first and last 4 characters
+  // Get status badge component
+  const getStatusBadge = (status: EventStatus) => {
+    const baseClasses = 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium';
+    
+    switch (status) {
+      case 'success':
+        return (
+          <span className={`${baseClasses} bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300`}>
+            <CheckCircle className="mr-1 h-3 w-3" /> Success
+          </span>
+        );
+      case 'failed':
+        return (
+          <span className={`${baseClasses} bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300`}>
+            <XCircle className="mr-1 h-3 w-3" /> Failed
+          </span>
+        );
+      default:
+        return (
+          <span className={`${baseClasses} bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300`}>
+            <ClockIcon className="mr-1 h-3 w-3" /> Pending
+          </span>
+        );
+    }
+  };
   const formatAddress = (address: string) => {
     if (!address) return 'Unknown';
     if (address.length <= 10) return address;
@@ -161,15 +184,95 @@ export function RealTimeActivityFeed({
   };
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
-      <div className="border-b border-gray-200 px-6 py-4 dark:border-gray-800">
+    <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
+      <div className="border-b border-gray-200 bg-gray-50 px-6 py-4 dark:border-gray-800 dark:bg-gray-800/50">
         <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-              Live Activity Feed
-            </h2>
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              Real-time events from your DApps
+          <h2 className="text-lg font-medium text-gray-900 dark:text-white">Recent Activity</h2>
+          <div className="flex items-center gap-2">
+            <div className="h-2 w-2 rounded-full bg-green-500"></div>
+            <span className="text-sm font-medium text-green-600 dark:text-green-400">Live</span>
+          </div>
+        </div>
+      </div>
+      <div ref={containerRef} className="max-h-[500px] overflow-y-auto">
+        <div className="divide-y divide-gray-200 dark:divide-gray-800">
+          {isLoading ? (
+            <div className="flex h-64 items-center justify-center">
+              <div className="flex flex-col items-center">
+                <div className="h-10 w-10 animate-spin rounded-full border-4 border-blue-500 border-t-transparent"></div>
+                <p className="mt-4 text-sm text-gray-600 dark:text-gray-400">Loading activity...</p>
+              </div>
+            </div>
+          ) : error ? (
+            <div className="rounded-lg border border-red-200 bg-red-50 p-6 dark:border-red-900 dark:bg-red-900/20">
+              <div className="flex items-center gap-3 text-red-700 dark:text-red-300">
+                <XCircle className="h-5 w-5" />
+                <p>Error loading activity feed: {error.message}</p>
+              </div>
+            </div>
+          ) : sortedEvents.length === 0 ? (
+            <div className="flex h-64 flex-col items-center justify-center p-6 text-center">
+              <Activity className="mb-4 h-12 w-12 text-gray-400" />
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white">No activity yet</h3>
+              <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                Activity will appear here when you start using the application.
+              </p>
+            </div>
+          ) : (
+            sortedEvents.map((event) => {
+              const status = getStatusFromEvent(event);
+              const timestamp = formatTimestamp(event.timestamp);
+              const eventType = formatEventType(event.eventType);
+              const shortAddress = formatAddress(event.user);
+              
+              return (
+                <div
+                  key={`${event.eventId}-${event.timestamp}`}
+                  className="group flex items-start gap-4 p-4 hover:bg-gray-50 dark:hover:bg-gray-800/50"
+                >
+                  <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">
+                    {getEventIcon(event.eventType)}
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">
+                        {eventType}
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                          {timestamp}
+                        </span>
+                        {getStatusBadge(status)}
+                      </div>
+                    </div>
+                    <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                      User {shortAddress}
+                    </p>
+                    <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                      <span>Block #{event.blockNumber.toString()}</span>
+                      <span>•</span>
+                      <span>Event ID: {event.eventId.toString()}</span>
+                      {event.dAppId !== undefined && (
+                        <>
+                          <span>•</span>
+                          <span>DApp ID: {event.dAppId.toString()}</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
+      {events.length > maxItems && (
+        <div className="border-t border-gray-200 bg-gray-50 px-6 py-3 text-center text-sm text-gray-600 dark:border-gray-800 dark:bg-gray-800/50 dark:text-gray-400">
+          Showing {maxItems} of {events.length} events
+        </div>
+      )}
+    </div>
+  );
             </p>
           </div>
           <div className="flex items-center gap-2">
