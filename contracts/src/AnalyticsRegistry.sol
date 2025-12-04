@@ -253,59 +253,24 @@ contract AnalyticsRegistry is Ownable {
     }
 
     /**
-     * @notice Register a new dApp in the analytics platform
-     * @param name Name of the dApp (3-50 characters)
-     * @param category Category of the dApp (DeFi, NFT, Gaming, Social, DAO, Other)
-     * @param contractAddresses Array of contract addresses associated with the dApp
-     * @return dAppId The ID assigned to the registered dApp
-     */
-    function registerDApp(
-        string memory name,
-        string memory category,
-        address[] memory contractAddresses
-    ) external returns (uint256) {
-        // Validation
-        if (bytes(name).length < 3 || bytes(name).length > 50) {
-            revert InvalidName();
-        }
-        if (bytes(category).length == 0) {
-            revert InvalidCategory();
-        }
-        if (contractAddresses.length == 0 || contractAddresses.length > 10) {
-            revert NoContractAddresses();
-        }
-
-        uint256 dAppId = nextDAppId++;
-
-        // Create new dApp
-        DAppInfo storage newDApp = dApps[dAppId];
-        newDApp.owner = msg.sender;
-        newDApp.name = name;
-        newDApp.category = category;
-        newDApp.contractAddresses = contractAddresses;
-        newDApp.isActive = true;
-        newDApp.registeredAt = block.timestamp;
-
-        // Track dApp ID
-        dAppIds.push(dAppId);
-        ownerDApps[msg.sender].push(dAppId);
-
-        emit DAppRegistered(dAppId, msg.sender, name, category, block.timestamp);
-
-        return dAppId;
-    }
-
-    /**
      * @notice Update dApp information (only owner can update)
      * @param dAppId ID of the dApp to update
      * @param name New name for the dApp
-     * @param category New category for the dApp
+     * @param description New description for the dApp
+     * @param website New website URL
+     * @param logoHash New IPFS hash of the logo
+     * @param categories New array of categories
+     * @param socialLinks New array of social links
      * @param contractAddresses New array of contract addresses
      */
     function updateDApp(
         uint256 dAppId,
         string memory name,
-        string memory category,
+        string memory description,
+        string memory website,
+        string memory logoHash,
+        string[] memory categories,
+        string[] memory socialLinks,
         address[] memory contractAddresses
     ) external {
         DAppInfo storage dApp = dApps[dAppId];
@@ -319,18 +284,73 @@ contract AnalyticsRegistry is Ownable {
         if (bytes(name).length < 3 || bytes(name).length > 50) {
             revert InvalidName();
         }
-        if (bytes(category).length == 0) {
-            revert InvalidCategory();
+        if (bytes(description).length > 500) {
+            revert("Description too long");
         }
-        if (contractAddresses.length == 0 || contractAddresses.length > 10) {
-            revert NoContractAddresses();
+        if (bytes(website).length == 0) {
+            revert InvalidWebsite();
+        }
+        if (categories.length == 0 || categories.length > MAX_CATEGORIES) {
+            revert MaxCategoriesExceeded();
+        }
+        if (socialLinks.length > MAX_SOCIAL_LINKS) {
+            revert MaxSocialLinksExceeded();
+        }
+        if (contractAddresses.length == 0 || contractAddresses.length > MAX_CONTRACT_ADDRESSES) {
+            revert MaxContractAddressesExceeded();
         }
 
+        // Remove old contract addresses from mapping
+        for (uint256 i = 0; i < dApp.contractAddresses.length; i++) {
+            delete contractToDAppId[dApp.contractAddresses[i]];
+        }
+
+        // Add new contract addresses to mapping
+        for (uint256 i = 0; i < contractAddresses.length; i++) {
+            if (contractToDAppId[contractAddresses[i]] != 0 && 
+                contractToDAppId[contractAddresses[i]] != dAppId) {
+                revert ContractAlreadyRegistered(contractAddresses[i]);
+            }
+            contractToDAppId[contractAddresses[i]] = dAppId;
+        }
+
+        // Remove old categories
+        for (uint256 i = 0; i < dApp.categories.length; i++) {
+            // Remove dApp from old category
+            string storage oldCategory = dApp.categories[i];
+            uint256[] storage dAppIdsInCategory = categoryToDApps[oldCategory];
+            for (uint256 j = 0; j < dAppIdsInCategory.length; j++) {
+                if (dAppIdsInCategory[j] == dAppId) {
+                    dAppIdsInCategory[j] = dAppIdsInCategory[dAppIdsInCategory.length - 1];
+                    dAppIdsInCategory.pop();
+                    break;
+                }
+            }
+        }
+
+        // Add new categories
+        for (uint256 i = 0; i < categories.length; i++) {
+            string memory category = categories[i];
+            categoryToDApps[category].push(dAppId);
+            
+            // Add to global categories if not exists
+            if (!_categories.contains(keccak256(abi.encodePacked(category)))) {
+                _categories.add(keccak256(abi.encodePacked(category)));
+                emit CategoryAdded(category, block.timestamp);
+            }
+        }
+
+        // Update dApp info
         dApp.name = name;
-        dApp.category = category;
+        dApp.description = description;
+        dApp.website = website;
+        dApp.logoHash = logoHash;
+        dApp.categories = categories;
+        dApp.socialLinks = socialLinks;
         dApp.contractAddresses = contractAddresses;
+        dApp.updatedAt = block.timestamp;
 
-        emit DAppUpdated(dAppId, name, category, block.timestamp);
+        emit DAppUpdated(dAppId, name, categories, block.timestamp);
     }
 
     /**
@@ -348,6 +368,7 @@ contract AnalyticsRegistry is Ownable {
         }
 
         dApp.isActive = false;
+        dApp.updatedAt = block.timestamp;
 
         emit DAppDeactivated(dAppId, block.timestamp);
     }
@@ -373,6 +394,48 @@ contract AnalyticsRegistry is Ownable {
     }
 
     /**
+     * @notice Get all featured dApp IDs
+     * @return Array of featured dApp IDs
+     */
+    function getFeaturedDApps() external view returns (uint256[] memory) {
+        return featuredDAppIds;
+    }
+
+    /**
+     * @notice Get dApp IDs by category
+     * @param category Category to filter by
+     * @return Array of dApp IDs in the specified category
+     */
+    function getDAppsByCategory(string memory category) external view returns (uint256[] memory) {
+        return categoryToDApps[category];
+    }
+
+    /**
+     * @notice Get all available categories
+     * @return Array of all categories
+     */
+    function getAllCategories() external view returns (string[] memory) {
+        string[] memory categories = new string[](_categories.length());
+        for (uint256 i = 0; i < _categories.length(); i++) {
+            categories[i] = string(abi.encode(_categories.at(i)));
+        }
+        return categories;
+    }
+
+    /**
+     * @notice Get dApp ID by contract address
+     * @param contractAddress Contract address to look up
+     * @return dAppId The ID of the dApp that owns the contract
+     */
+    function getDAppIdByContract(address contractAddress) external view returns (uint256) {
+        uint256 dAppId = contractToDAppId[contractAddress];
+        if (dAppId == 0) {
+            revert DAppNotFound(0);
+        }
+        return dAppId;
+    }
+
+    /**
      * @notice Check if a dApp is registered and active
      * @param dAppId ID of the dApp to check
      * @return bool True if dApp is registered and active
@@ -382,12 +445,44 @@ contract AnalyticsRegistry is Ownable {
     }
 
     /**
+     * @notice Check if a dApp is verified
+     * @param dAppId ID of the dApp to check
+     * @return bool True if dApp is verified
+     */
+    function isDAppVerified(uint256 dAppId) external view returns (bool) {
+        if (dApps[dAppId].registeredAt == 0) {
+            revert DAppNotFound(dAppId);
+        }
+        return dApps[dAppId].isVerified;
+    }
+
+    /**
      * @notice Get all dApps owned by a specific address
      * @param owner Address of the owner
      * @return Array of dApp IDs owned by the address
      */
     function getDAppsByOwner(address owner) external view returns (uint256[] memory) {
         return ownerDApps[owner];
+    }
+
+    /**
+     * @notice Get contract addresses for a dApp
+     * @param dAppId ID of the dApp
+     * @return Array of contract addresses
+     */
+    function getDAppContractAddresses(uint256 dAppId) external view returns (address[] memory) {
+        if (dApps[dAppId].registeredAt == 0) {
+            revert DAppNotFound(dAppId);
+        }
+        return dApps[dAppId].contractAddresses;
+    }
+
+    /**
+     * @notice Get the total number of registered dApps
+     * @return uint256 Total number of dApps
+     */
+    function getTotalDApps() external view returns (uint256) {
+        return dAppIds.length;
     }
 
     /**
