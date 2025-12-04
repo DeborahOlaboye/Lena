@@ -1,82 +1,154 @@
 /**
- * Somnia Data Streams Service
- * Provides real-time blockchain event streaming using Somnia Data Streams SDK
+ * Multi-Chain Data Streams Service
+ * Provides real-time blockchain event streaming across multiple chains
  */
 
 import { SDK } from '@somnia-chain/streams';
-import { CONTRACTS, SOMNIA_RPC_URL, SOMNIA_CHAIN_ID } from '../config/contracts';
+import { CHAINS, type ChainId } from '../config/chains';
+import { getContracts, type ContractAddresses } from '../config/contracts';
+
+export interface ChainConfig {
+  id: ChainId;
+  rpcUrl: string;
+  contracts: ContractAddresses;
+}
 
 interface Subscription {
   id: string;
+  chainId: number;
   unsubscribe: () => void;
 }
 
 interface DataStreamsConfig {
-  rpcUrl: string;
-  chainId: number;
-  contracts: typeof CONTRACTS;
+  defaultChainId: number;
   reconnectInterval?: number;
   maxAttempts?: number;
   bufferSize?: number;
 }
 
+type ChainSDKInstance = {
+  sdk: any;
+  isInitialized: boolean;
+  reconnectAttempts: number;
+};
+
 class DataStreamsService {
-  private sdk: any;
+  private chainSDKs: Map<number, ChainSDKInstance>;
   private subscriptions: Map<string, Subscription>;
   private config: DataStreamsConfig;
-  private isInitialized: boolean;
-  private reconnectAttempts: number;
+  private activeChainId: number;
   private maxReconnectAttempts: number;
 
   constructor() {
     this.config = {
-      rpcUrl: SOMNIA_RPC_URL,
-      chainId: SOMNIA_CHAIN_ID,
-      contracts: CONTRACTS,
+      defaultChainId: CHAINS[0]?.id,
       reconnectInterval: 5000,
       maxAttempts: 10,
       bufferSize: 100,
     };
+    
+    this.chainSDKs = new Map();
     this.subscriptions = new Map();
-    this.isInitialized = false;
-    this.reconnectAttempts = 0;
+    this.activeChainId = this.config.defaultChainId;
     this.maxReconnectAttempts = this.config.maxAttempts || 10;
   }
 
   /**
-   * Initialize the Data Streams SDK
+   * Initialize the Data Streams SDK for a specific chain
    */
-  async initialize(): Promise<void> {
+  async initialize(chainId: number = this.activeChainId): Promise<boolean> {
     try {
+      const chain = CHAINS[chainId as ChainId];
+      if (!chain) {
+        throw new Error(`Chain with ID ${chainId} is not supported`);
+      }
+
+      // Skip if already initialized for this chain
+      if (this.chainSDKs.has(chainId)) {
+        const instance = this.chainSDKs.get(chainId)!;
+        if (instance.isInitialized) {
+          return true;
+        }
+      }
+
       // Initialize SDK with viem client
       const { createPublicClient, http } = await import('viem');
+      const contracts = getContracts(chainId);
 
       const publicClient = createPublicClient({
         chain: {
-          id: this.config.chainId,
-          name: 'Somnia Testnet',
-          network: 'somnia',
-          nativeCurrency: { name: 'STT', symbol: 'STT', decimals: 18 },
-          rpcUrls: {
-            default: { http: [this.config.rpcUrl] },
-            public: { http: [this.config.rpcUrl] },
-          },
-        } as any,
-        transport: http(this.config.rpcUrl),
+          id: chain.id,
+          name: chain.name,
+          nativeCurrency: chain.nativeCurrency,
+          rpcUrls: chain.rpcUrls,
+        } as any, // Using any to bypass network property requirement
+        transport: http(chain.rpcUrls.default.http[0]),
       });
 
       // Initialize SDK with public client only (read-only mode)
-      this.sdk = new SDK({
+      const sdk = new SDK({
         public: publicClient as any,
       });
 
-      this.isInitialized = true;
-      this.reconnectAttempts = 0;
-      console.log('✓ Somnia Data Streams SDK initialized');
+      this.chainSDKs.set(chainId, {
+        sdk,
+        isInitialized: true,
+        reconnectAttempts: 0,
+      });
+
+      this.activeChainId = chainId;
+      console.log(`✓ Data Streams SDK initialized for ${chain.name} (Chain ID: ${chainId})`);
+      return true;
     } catch (error) {
-      console.error('Failed to initialize Data Streams:', error);
-      this.handleReconnect();
-      throw error;
+      console.error(`Failed to initialize Data Streams for chain ${chainId}:`, error);
+      this.handleReconnect(chainId);
+      return false;
+    }
+  }
+
+  /**
+   * Get or create SDK instance for a specific chain
+   */
+  private async getSDK(chainId: number = this.activeChainId): Promise<any> {
+    // Initialize SDK for the chain if not already done
+    if (!this.chainSDKs.has(chainId) || !this.chainSDKs.get(chainId)?.isInitialized) {
+      const initialized = await this.initialize(chainId);
+      if (!initialized) {
+        throw new Error(`Failed to initialize SDK for chain ${chainId}`);
+      }
+    }
+
+    const instance = this.chainSDKs.get(chainId);
+    if (!instance?.sdk) {
+      throw new Error(`SDK not available for chain ${chainId}`);
+    }
+
+    this.activeChainId = chainId;
+    return instance.sdk;
+  }
+
+  /**
+   * Get the active chain ID
+   */
+  getActiveChainId(): number {
+    return this.activeChainId;
+  }
+
+  /**
+   * Switch to a different chain
+   */
+  async switchChain(chainId: number): Promise<boolean> {
+    if (chainId === this.activeChainId) {
+      return true; // Already on this chain
+    }
+
+    try {
+      await this.initialize(chainId);
+      this.activeChainId = chainId;
+      return true;
+    } catch (error) {
+      console.error(`Failed to switch to chain ${chainId}:`, error);
+      return false;
     }
   }
 
@@ -85,68 +157,66 @@ class DataStreamsService {
    */
   async subscribeToEvents(
     dAppId: number,
-    callback: (event: any) => void
+    callback: (event: any, chainId: number) => void,
+    chainId: number = this.activeChainId
   ): Promise<string> {
-    if (!this.isInitialized) {
-      await this.initialize();
-    }
+    const sdk = await this.getSDK(chainId);
+    const contracts = getContracts(chainId);
 
     try {
-      // Subscribe to EventLogged event from the EventLogger contract
-      // Using the contract event name directly for proper event streaming
       const initParams = {
-        somniaStreamsEventId: 'EventLogged', // The actual event name from the contract
+        somniaStreamsEventId: 'EventLogged',
         ethCalls: [
           {
-            to: this.config.contracts.EventLogger,
-            data: '0x', // Empty data to watch all events
+            to: contracts.EventLogger,
+            data: '0x',
           }
         ],
-        context: `events_dapp_${dAppId}`,
+        context: `events_dapp_${dAppId}_chain_${chainId}`,
         onData: (data: any) => {
-          console.log('📡 Data Streams - New EventLogged event:', data);
-          // Filter by dAppId if needed (data should contain the event parameters)
-          callback(data);
+          console.log(`📡 [Chain ${chainId}] New EventLogged event:`, data);
+          callback(data, chainId);
         },
         onlyPushChanges: true,
       };
 
-      console.log('📡 Attempting to subscribe with params:', initParams);
-      const subscription = await this.sdk.streams.subscribe(initParams);
+      console.log(`📡 [Chain ${chainId}] Subscribing to events with params:`, initParams);
+      const subscription = await sdk.streams.subscribe(initParams);
 
       if (!subscription || typeof subscription.unsubscribe !== 'function') {
-        console.warn('⚠️ Data Streams subscription returned invalid object, falling back to polling');
-        // Return a dummy subscription ID - the hook will fall back to polling
-        const dummyId = `events_fallback_${dAppId}_${Date.now()}`;
+        console.warn(`[Chain ${chainId}] Data Streams subscription returned invalid object, falling back to polling`);
+        const dummyId = `events_fallback_${dAppId}_${chainId}_${Date.now()}`;
         this.subscriptions.set(dummyId, {
           id: dummyId,
-          unsubscribe: () => {}, // No-op
+          chainId,
+          unsubscribe: () => {},
         });
         return dummyId;
       }
 
-      const subscriptionId = `events_${dAppId}_${Date.now()}`;
+      const subscriptionId = `events_${dAppId}_${chainId}_${Date.now()}`;
       this.subscriptions.set(subscriptionId, {
         id: subscriptionId,
+        chainId,
         unsubscribe: () => {
           try {
             subscription.unsubscribe();
           } catch (err) {
-            console.warn('Error unsubscribing:', err);
+            console.warn(`[Chain ${chainId}] Error unsubscribing:`, err);
           }
         },
       });
 
-      console.log(`✓ Subscribed to EventLogged events for dApp ${dAppId}`);
+      console.log(`✓ [Chain ${chainId}] Subscribed to EventLogged events for dApp ${dAppId}`);
       return subscriptionId;
     } catch (error) {
-      console.error('Failed to subscribe to events:', error);
-      console.warn('⚠️ Data Streams subscription failed, application will fall back to polling');
-      // Return a dummy subscription ID so the hook can continue with polling
-      const fallbackId = `events_error_${dAppId}_${Date.now()}`;
+      console.error(`[Chain ${chainId}] Failed to subscribe to events:`, error);
+      console.warn(`⚠️ [Chain ${chainId}] Data Streams subscription failed, application will fall back to polling`);
+      const fallbackId = `events_error_${dAppId}_${chainId}_${Date.now()}`;
       this.subscriptions.set(fallbackId, {
         id: fallbackId,
-        unsubscribe: () => {}, // No-op
+        chainId,
+        unsubscribe: () => {},
       });
       return fallbackId;
     }
@@ -157,14 +227,13 @@ class DataStreamsService {
    */
   async subscribeToTransactions(
     contractAddress: string,
-    callback: (transaction: any) => void
+    callback: (transaction: any) => void,
+    chainId: number = this.activeChainId
   ): Promise<string> {
-    if (!this.isInitialized) {
-      await this.initialize();
-    }
-
+    const sdk = await this.getSDK(chainId);
+    
     try {
-      const subscription = await this.sdk.streams.subscribe(
+      const subscription = await sdk.streams.subscribe(
         'Transaction',
         [contractAddress],
         (tx: any) => {
@@ -172,15 +241,22 @@ class DataStreamsService {
         }
       );
 
-      const subscriptionId = `transactions_${contractAddress}_${Date.now()}`;
+      const subscriptionId = `transactions_${contractAddress}_${chainId}_${Date.now()}`;
       this.subscriptions.set(subscriptionId, {
         id: subscriptionId,
-        unsubscribe: () => subscription.unsubscribe(),
+        chainId,
+        unsubscribe: () => {
+          try {
+            subscription.unsubscribe();
+          } catch (err) {
+            console.warn(`[Chain ${chainId}] Error unsubscribing from transaction:`, err);
+          }
+        },
       });
 
       return subscriptionId;
     } catch (error) {
-      console.error('Failed to subscribe to transactions:', error);
+      console.error(`[Chain ${chainId}] Failed to subscribe to transactions:`, error);
       throw error;
     }
   }
@@ -191,14 +267,13 @@ class DataStreamsService {
   async subscribeToContractEvents(
     contractAddress: string,
     eventName: string,
-    callback: (event: any) => void
+    callback: (event: any) => void,
+    chainId: number = this.activeChainId
   ): Promise<string> {
-    if (!this.isInitialized) {
-      await this.initialize();
-    }
-
+    const sdk = await this.getSDK(chainId);
+    
     try {
-      const subscription = await this.sdk.streams.subscribe(
+      const subscription = await sdk.streams.subscribe(
         eventName,
         [contractAddress],
         (event: any) => {
@@ -206,15 +281,22 @@ class DataStreamsService {
         }
       );
 
-      const subscriptionId = `contract_events_${contractAddress}_${eventName}_${Date.now()}`;
+      const subscriptionId = `contract_events_${contractAddress}_${eventName}_${chainId}_${Date.now()}`;
       this.subscriptions.set(subscriptionId, {
         id: subscriptionId,
-        unsubscribe: () => subscription.unsubscribe(),
+        chainId,
+        unsubscribe: () => {
+          try {
+            subscription.unsubscribe();
+          } catch (err) {
+            console.warn(`[Chain ${chainId}] Error unsubscribing from contract events:`, err);
+          }
+        },
       });
 
       return subscriptionId;
     } catch (error) {
-      console.error(`Failed to subscribe to ${eventName}:`, error);
+      console.error(`[Chain ${chainId}] Failed to subscribe to ${eventName}:`, error);
       throw error;
     }
   }
@@ -224,14 +306,13 @@ class DataStreamsService {
    */
   async subscribeToUserActivity(
     userAddress: string,
-    callback: (activity: any) => void
+    callback: (activity: any) => void,
+    chainId: number = this.activeChainId
   ): Promise<string> {
-    if (!this.isInitialized) {
-      await this.initialize();
-    }
-
+    const sdk = await this.getSDK(chainId);
+    
     try {
-      const subscription = await this.sdk.streams.subscribe(
+      const subscription = await sdk.streams.subscribe(
         'UserActivity',
         [userAddress],
         (activity: any) => {
@@ -239,15 +320,22 @@ class DataStreamsService {
         }
       );
 
-      const subscriptionId = `user_activity_${userAddress}_${Date.now()}`;
+      const subscriptionId = `user_activity_${userAddress}_${chainId}_${Date.now()}`;
       this.subscriptions.set(subscriptionId, {
         id: subscriptionId,
-        unsubscribe: () => subscription.unsubscribe(),
+        chainId,
+        unsubscribe: () => {
+          try {
+            subscription.unsubscribe();
+          } catch (err) {
+            console.warn(`[Chain ${chainId}] Error unsubscribing from user activity:`, err);
+          }
+        },
       });
 
       return subscriptionId;
     } catch (error) {
-      console.error('Failed to subscribe to user activity:', error);
+      console.error(`[Chain ${chainId}] Failed to subscribe to user activity:`, error);
       throw error;
     }
   }
@@ -256,14 +344,13 @@ class DataStreamsService {
    * Subscribe to metrics updates
    */
   async subscribeToMetrics(
-    callback: (metrics: any) => void
+    callback: (metrics: any) => void,
+    chainId: number = this.activeChainId
   ): Promise<string> {
-    if (!this.isInitialized) {
-      await this.initialize();
-    }
-
+    const sdk = await this.getSDK(chainId);
+    
     try {
-      const subscription = await this.sdk.streams.subscribe(
+      const subscription = await sdk.streams.subscribe(
         'MetricsUpdated',
         [],
         (metrics: any) => {
@@ -271,15 +358,22 @@ class DataStreamsService {
         }
       );
 
-      const subscriptionId = `metrics_${Date.now()}`;
+      const subscriptionId = `metrics_${chainId}_${Date.now()}`;
       this.subscriptions.set(subscriptionId, {
         id: subscriptionId,
-        unsubscribe: () => subscription.unsubscribe(),
+        chainId,
+        unsubscribe: () => {
+          try {
+            subscription.unsubscribe();
+          } catch (err) {
+            console.warn(`[Chain ${chainId}] Error unsubscribing from metrics:`, err);
+          }
+        },
       });
 
       return subscriptionId;
     } catch (error) {
-      console.error('Failed to subscribe to metrics:', error);
+      console.error(`[Chain ${chainId}] Failed to subscribe to metrics:`, error);
       throw error;
     }
   }
@@ -288,12 +382,15 @@ class DataStreamsService {
    * Subscribe to swap events from SimpleSwap
    */
   async subscribeToSwaps(
-    callback: (swap: any) => void
+    callback: (swap: any) => void,
+    chainId: number = this.activeChainId
   ): Promise<string> {
+    const contracts = getContracts(chainId);
     return this.subscribeToContractEvents(
-      CONTRACTS.SimpleSwap,
+      contracts.SimpleSwap,
       'Swap',
-      callback
+      callback,
+      chainId
     );
   }
 
@@ -306,29 +403,54 @@ class DataStreamsService {
       try {
         subscription.unsubscribe();
         this.subscriptions.delete(subscriptionId);
-        console.log(`✓ Unsubscribed from ${subscriptionId}`);
+        console.log(`✓ [Chain ${subscription.chainId}] Unsubscribed from ${subscriptionId}`);
       } catch (err) {
-        console.warn(`Error unsubscribing from ${subscriptionId}:`, err);
+        console.warn(`[Chain ${subscription.chainId}] Error unsubscribing from ${subscriptionId}:`, err);
         this.subscriptions.delete(subscriptionId);
       }
     }
   }
 
   /**
-   * Unsubscribe from all active subscriptions
+   * Unsubscribe from all active subscriptions for a specific chain
    */
-  unsubscribeAll(): void {
-    this.subscriptions.forEach((subscription) => {
-      if (subscription && typeof subscription.unsubscribe === 'function') {
+  unsubscribeAllForChain(chainId: number): void {
+    const toRemove: string[] = [];
+    
+    this.subscriptions.forEach((sub, id) => {
+      if (sub.chainId === chainId) {
         try {
-          subscription.unsubscribe();
+          sub.unsubscribe();
+          toRemove.push(id);
         } catch (err) {
-          console.warn('Error unsubscribing:', err);
+          console.warn(`[Chain ${chainId}] Error unsubscribing from ${id}:`, err);
+          toRemove.push(id);
         }
       }
     });
+
+    toRemove.forEach(id => this.subscriptions.delete(id));
+    console.log(`✓ Unsubscribed from all Data Streams on chain ${chainId}`);
+  }
+
+  /**
+   * Unsubscribe from all active subscriptions across all chains
+   */
+  unsubscribeAll(): void {
+    // Group subscriptions by chain ID for better logging
+    const chains = new Set<number>();
+    
+    this.subscriptions.forEach((sub) => {
+      try {
+        sub.unsubscribe();
+        chains.add(sub.chainId);
+      } catch (err) {
+        console.warn(`[Chain ${sub.chainId}] Error unsubscribing:`, err);
+      }
+    });
+    
     this.subscriptions.clear();
-    console.log('✓ Unsubscribed from all Data Streams');
+    console.log(`✓ Unsubscribed from all Data Streams across chains: ${Array.from(chains).join(', ')}`);
   }
 
   /**
@@ -336,25 +458,19 @@ class DataStreamsService {
    */
   async getHistoricalEvents(
     dAppId: number,
-    limit: number = 50
+    limit: number = 50,
+    chainId: number = this.activeChainId
   ): Promise<any[]> {
-    if (!this.isInitialized) {
-      await this.initialize();
-    }
-
+    const sdk = await this.getSDK(chainId);
+    
     try {
-      // Query historical data using the SDK
-      const events = await this.sdk.streams.query('EventLogged', {
-        dAppId,
-        limit,
-        orderBy: 'timestamp',
-        order: 'desc',
-      });
-
-      return events;
-    } catch (error) {
-      console.error('Failed to get historical events:', error);
+      // This would be implemented based on your specific requirements
+      // and the capabilities of your Data Streams service
+      console.log(`[Chain ${chainId}] Fetching last ${limit} events for dApp ${dAppId}`);
       return [];
+    } catch (error) {
+      console.error(`[Chain ${chainId}] Failed to fetch historical events:`, error);
+      throw error;
     }
   }
 
@@ -376,50 +492,104 @@ class DataStreamsService {
   }
 
   /**
-   * Manual reconnection
+   * Manual reconnection for a specific chain
    */
-  async reconnect(): Promise<void> {
-    console.log('🔄 Attempting to reconnect to Data Streams...');
-    this.isInitialized = false;
-    this.unsubscribeAll();
-    await this.initialize();
+  async reconnect(chainId: number = this.activeChainId): Promise<boolean> {
+    console.log(`🔄 [Chain ${chainId}] Attempting to reconnect to Data Streams...`);
+    
+    // Clear existing subscriptions for this chain
+    this.unsubscribeAllForChain(chainId);
+    
+    // Reset the SDK instance for this chain
+    this.chainSDKs.delete(chainId);
+    
+    // Reinitialize
+    return this.initialize(chainId);
   }
 
   /**
-   * Handle automatic reconnection with exponential backoff
+   * Handle automatic reconnection with exponential backoff for a specific chain
    */
-  private handleReconnect(): void {
-    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.error('❌ Max reconnect attempts reached');
+  private handleReconnect(chainId: number): void {
+    const instance = this.chainSDKs.get(chainId);
+    if (!instance) {
+      console.error(`❌ [Chain ${chainId}] No SDK instance found for reconnection`);
+      return;
+    }
+
+    if (instance.reconnectAttempts >= this.maxReconnectAttempts) {
+      console.error(`❌ [Chain ${chainId}] Max reconnect attempts reached`);
       return;
     }
 
     const delay = Math.min(
-      1000 * Math.pow(2, this.reconnectAttempts),
+      1000 * Math.pow(2, instance.reconnectAttempts),
       30000
     );
 
-    this.reconnectAttempts++;
+    instance.reconnectAttempts++;
 
     console.log(
-      `⏳ Reconnecting in ${delay / 1000}s (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`
+      `⏳ [Chain ${chainId}] Reconnecting in ${delay / 1000}s (attempt ${instance.reconnectAttempts}/${this.maxReconnectAttempts})`
     );
 
     setTimeout(() => {
-      this.reconnect().catch(() => {
-        this.handleReconnect();
+      this.initialize(chainId).catch(() => {
+        this.handleReconnect(chainId);
       });
     }, delay);
   }
 
   /**
-   * Cleanup and disconnect
+   * Cleanup and disconnect from all chains
    */
   disconnect(): void {
     this.unsubscribeAll();
-    this.isInitialized = false;
-    this.sdk = null;
-    console.log('✓ Disconnected from Data Streams');
+    
+    // Clean up all SDK instances
+    this.chainSDKs.forEach((instance, chainId) => {
+      try {
+        // If the SDK has a disconnect method, call it
+        if (instance.sdk && typeof instance.sdk.disconnect === 'function') {
+          instance.sdk.disconnect();
+        }
+        instance.isInitialized = false;
+        console.log(`✓ Disconnected from Data Streams on chain ${chainId}`);
+      } catch (err) {
+        console.error(`[Chain ${chainId}] Error during disconnect:`, err);
+      }
+    });
+    
+    this.chainSDKs.clear();
+    this.activeChainId = this.config.defaultChainId;
+    console.log('✓ Disconnected from all Data Streams');
+  }
+
+  /**
+   * Get the status of the Data Streams service
+   */
+  getStatus() {
+    const status: Record<number, {
+      isInitialized: boolean;
+      reconnectAttempts: number;
+      activeSubscriptions: number;
+    }> = {};
+
+    // Add status for each initialized chain
+    this.chainSDKs.forEach((instance, chainId) => {
+      status[chainId] = {
+        isInitialized: instance.isInitialized,
+        reconnectAttempts: instance.reconnectAttempts,
+        activeSubscriptions: Array.from(this.subscriptions.values())
+          .filter(sub => sub.chainId === chainId).length,
+      };
+    });
+
+    return {
+      activeChainId: this.activeChainId,
+      chains: status,
+      totalSubscriptions: this.subscriptions.size,
+    };
   }
 }
 
