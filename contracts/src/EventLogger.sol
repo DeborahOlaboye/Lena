@@ -44,7 +44,8 @@ contract EventLogger {
         uint256 indexed dAppId,
         address indexed user,
         string eventType,
-        uint256 timestamp
+        uint256 timestamp,
+        uint256 blockNumber
     );
 
     event TransactionLogged(
@@ -52,6 +53,10 @@ contract EventLogger {
         uint256 indexed dAppId,
         address indexed user,
         bytes32 txHash,
+        uint256 gasUsed,
+        bool success,
+        uint256 value,
+        uint256 blockNumber,
         uint256 timestamp
     );
 
@@ -60,14 +65,37 @@ contract EventLogger {
         uint256 indexed dAppId,
         address indexed user,
         string action,
+        string metadata,
+        uint256 blockNumber,
         uint256 timestamp
     );
 
     event BatchEventsLogged(
         uint256 indexed dAppId,
+        uint256 startEventId,
+        uint256 endEventId,
         uint256 eventCount,
+        uint256 blockNumber,
         uint256 timestamp
     );
+
+    event EventTypeRegistered(
+        uint256 indexed dAppId,
+        string indexed eventType,
+        string indexed eventSchema,
+        uint256 timestamp
+    );
+
+    event EventBatchProcessed(
+        uint256 indexed dAppId,
+        uint256 startEventId,
+        uint256 endEventId,
+        uint256 blockNumber,
+        uint256 timestamp
+    );
+
+    // Mapping to store event schemas for each dApp and event type
+    mapping(uint256 => mapping(string => string)) private dAppEventSchemas;
 
     // Custom errors
     error DAppNotRegistered(uint256 dAppId);
@@ -90,6 +118,39 @@ contract EventLogger {
      * @param dAppId ID of the dApp logging the event
      * @param user Address of the user involved
      * @param eventType Type of event (e.g., "click", "view", "submit")
+     * @param eventData Additional JSON data about the event
+     * @return eventId The ID of the logged event
+     */
+    /**
+     * @notice Register a new event type with a schema
+     * @param dAppId ID of the dApp
+     * @param eventType Type of the event (e.g., 'purchase', 'login', 'click')
+     * @param eventSchema JSON schema string defining the event data structure
+     */
+    function registerEventType(
+        uint256 dAppId,
+        string memory eventType,
+        string memory eventSchema
+    ) external {
+        require(registry.isDAppRegistered(dAppId), "DApp not registered");
+        require(bytes(eventType).length > 0, "Invalid event type");
+        require(bytes(eventSchema).length > 0, "Invalid event schema");
+        
+        dAppEventSchemas[dAppId][eventType] = eventSchema;
+        
+        emit EventTypeRegistered(
+            dAppId,
+            eventType,
+            eventSchema,
+            block.timestamp
+        );
+    }
+
+    /**
+     * @notice Log a general analytics event
+     * @param dAppId ID of the dApp logging the event
+     * @param user Address of the user involved (address(0) for system events)
+     * @param eventType Type of event (e.g., 'click', 'view', 'submit')
      * @param eventData Additional JSON data about the event
      * @return eventId The ID of the logged event
      */
@@ -126,7 +187,21 @@ contract EventLogger {
             userEvents[user].push(eventId);
         }
 
-        emit EventLogged(eventId, dAppId, user, eventType, block.timestamp);
+        emit EventLogged(
+            eventId,
+            dAppId,
+            user,
+            eventType,
+            block.timestamp,
+            block.number
+        );
+
+        // If there's a schema for this event type, validate the event data against it
+        string memory schema = dAppEventSchemas[dAppId][eventType];
+        if (bytes(schema).length > 0) {
+            // In a real implementation, you would validate eventData against the schema here
+            // This could be done off-chain or using an on-chain JSON schema validator
+        }
 
         return eventId;
     }
@@ -139,15 +214,39 @@ contract EventLogger {
      * @param eventData Additional data about the transaction
      * @return eventId The ID of the logged event
      */
+    /**
+     * @notice Log a transaction event with additional details
+     * @param dAppId ID of the dApp
+     * @param user Address of the user
+     * @param txHash Hash of the transaction
+     * @param gasUsed Amount of gas used in the transaction
+     * @param success Whether the transaction was successful
+     * @param value Value transferred in the transaction (in wei)
+     * @param eventData Additional JSON data about the event
+     * @return eventId The ID of the logged event
+     */
     function logTransaction(
         uint256 dAppId,
         address user,
         bytes32 txHash,
+        uint256 gasUsed,
+        bool success,
+        uint256 value,
         string memory eventData
     ) external returns (uint256) {
         uint256 eventId = logEvent(dAppId, user, "transaction", eventData);
 
-        emit TransactionLogged(eventId, dAppId, user, txHash, block.timestamp);
+        emit TransactionLogged(
+            eventId,
+            dAppId,
+            user,
+            txHash,
+            gasUsed,
+            success,
+            value,
+            block.number,
+            block.timestamp
+        );
 
         return eventId;
     }
@@ -160,15 +259,33 @@ contract EventLogger {
      * @param eventData Additional data about the action
      * @return eventId The ID of the logged event
      */
+    /**
+     * @notice Log a user action event
+     * @param dAppId ID of the dApp
+     * @param user Address of the user
+     * @param action Type of action performed
+     * @param metadata Additional metadata about the action (JSON string)
+     * @param eventData Additional JSON data about the event
+     * @return eventId The ID of the logged event
+     */
     function logUserAction(
         uint256 dAppId,
         address user,
         string memory action,
+        string memory metadata,
         string memory eventData
     ) external returns (uint256) {
         uint256 eventId = logEvent(dAppId, user, "user_action", eventData);
 
-        emit UserActionLogged(eventId, dAppId, user, action, block.timestamp);
+        emit UserActionLogged(
+            eventId,
+            dAppId,
+            user,
+            action,
+            metadata,
+            block.number,
+            block.timestamp
+        );
 
         return eventId;
     }
@@ -179,6 +296,14 @@ contract EventLogger {
      * @param users Array of user addresses
      * @param eventTypes Array of event types
      * @param eventDataArray Array of event data
+     * @return eventIds Array of logged event IDs
+     */
+    /**
+     * @notice Log multiple events in a single transaction (gas-efficient)
+     * @param dAppId ID of the dApp
+     * @param users Array of user addresses
+     * @param eventTypes Array of event types
+     * @param eventDataArray Array of event data (JSON strings)
      * @return eventIds Array of logged event IDs
      */
     function batchLogEvents(
@@ -198,6 +323,7 @@ contract EventLogger {
         }
 
         uint256[] memory newEventIds = new uint256[](length);
+        uint256 firstEventId = nextEventId; // Store the first event ID for the batch
 
         for (uint256 i = 0; i < length; i++) {
             if (bytes(eventTypes[i]).length == 0) {
@@ -228,7 +354,22 @@ contract EventLogger {
             emit EventLogged(eventId, dAppId, users[i], eventTypes[i], block.timestamp);
         }
 
-        emit BatchEventsLogged(dAppId, length, block.timestamp);
+        emit BatchEventsLogged(
+            dAppId,
+            firstEventId,
+            nextEventId - 1, // Last event ID in the batch
+            length,
+            block.number,
+            block.timestamp
+        );
+        
+        emit EventBatchProcessed(
+            dAppId,
+            firstEventId,
+            nextEventId - 1,
+            block.number,
+            block.timestamp
+        );
 
         return newEventIds;
     }
@@ -286,9 +427,42 @@ contract EventLogger {
      * @param eventId ID of the event
      * @return AnalyticsEvent struct
      */
+    /**
+     * @notice Get event details by ID
+     * @param eventId ID of the event to retrieve
+     * @return eventDetails The full event details
+     */
     function getEvent(uint256 eventId) external view returns (AnalyticsEvent memory) {
-        require(events[eventId].eventId > 0, "Event not found");
+        require(events[eventId].eventId != 0, "Event not found");
         return events[eventId];
+    }
+    
+    /**
+     * @notice Check if an event type is registered for a dApp
+     * @param dAppId ID of the dApp
+     * @param eventType Type of the event
+     * @return bool True if the event type is registered
+     */
+    function isEventTypeRegistered(uint256 dAppId, string memory eventType) 
+        external 
+        view 
+        returns (bool) 
+    {
+        return bytes(dAppEventSchemas[dAppId][eventType]).length > 0;
+    }
+    
+    /**
+     * @notice Get the schema for a specific event type
+     * @param dAppId ID of the dApp
+     * @param eventType Type of the event
+     * @return string JSON schema for the event type
+     */
+    function getEventSchema(uint256 dAppId, string memory eventType) 
+        external 
+        view 
+        returns (string memory) 
+    {
+        return dAppEventSchemas[dAppId][eventType];
     }
 
     /**

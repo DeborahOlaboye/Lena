@@ -16,8 +16,12 @@ contract SessionManager {
         uint256 dAppId;
         uint256 startTime;
         uint256 endTime;
+        uint256 lastActivityTime;
         uint256 transactionCount;
         uint256 gasSpent;
+        address sessionContract;
+        bytes32 userAgent;
+        bytes32 ipAddress;
         bool isActive;
     }
 
@@ -44,7 +48,11 @@ contract SessionManager {
         uint256 indexed sessionId,
         address indexed user,
         uint256 indexed dAppId,
-        uint256 timestamp
+        address sessionContract,
+        bytes32 userAgent,
+        bytes32 ipAddress,
+        uint256 timestamp,
+        uint256 blockNumber
     );
 
     event SessionEnded(
@@ -53,14 +61,45 @@ contract SessionManager {
         uint256 indexed dAppId,
         uint256 duration,
         uint256 transactionCount,
-        uint256 timestamp
+        uint256 totalGasSpent,
+        uint256 timestamp,
+        uint256 blockNumber
     );
 
     event SessionUpdated(
         uint256 indexed sessionId,
         uint256 transactionCount,
         uint256 gasSpent,
-        uint256 timestamp
+        uint256 totalGasSpent,
+        uint256 timestamp,
+        uint256 blockNumber
+    );
+    
+    event SessionExtended(
+        uint256 indexed sessionId,
+        uint256 newEndTime,
+        uint256 extensionDuration,
+        uint256 timestamp,
+        uint256 blockNumber
+    );
+    
+    event SessionTimedOut(
+        uint256 indexed sessionId,
+        address indexed user,
+        uint256 indexed dAppId,
+        uint256 duration,
+        uint256 timestamp,
+        uint256 blockNumber
+    );
+    
+    event SessionActivity(
+        uint256 indexed sessionId,
+        address indexed user,
+        uint256 indexed dAppId,
+        string actionType,
+        bytes data,
+        uint256 timestamp,
+        uint256 blockNumber
     );
 
     // Custom errors
@@ -85,7 +124,20 @@ contract SessionManager {
      * @param dAppId ID of the dApp
      * @return sessionId The ID of the started session
      */
-    function startSession(uint256 dAppId) external returns (uint256) {
+    /**
+     * @notice Start a new session for a user in a dApp
+     * @param dAppId ID of the dApp
+     * @param sessionContract Address of the contract that initiated the session (optional)
+     * @param userAgent Hash of the user agent string (optional)
+     * @param ipAddress Hash of the user's IP address (optional)
+     * @return sessionId The ID of the started session
+     */
+    function startSession(
+        uint256 dAppId,
+        address sessionContract,
+        bytes32 userAgent,
+        bytes32 ipAddress
+    ) external returns (uint256) {
         // Validate dApp registration
         if (!registry.isDAppRegistered(dAppId)) {
             revert DAppNotRegistered(dAppId);
@@ -94,7 +146,13 @@ contract SessionManager {
         // Check for existing active session
         uint256 existingSessionId = activeUserDAppSession[msg.sender][dAppId];
         if (existingSessionId > 0 && sessions[existingSessionId].isActive) {
-            revert SessionAlreadyActive(msg.sender, dAppId);
+            // End the existing session if it's been inactive for too long (e.g., 30 minutes)
+            Session storage existingSession = sessions[existingSessionId];
+            if (block.timestamp - existingSession.lastActivityTime > 30 minutes) {
+                _endSession(existingSessionId);
+            } else {
+                revert SessionAlreadyActive(msg.sender, dAppId);
+            }
         }
 
         uint256 sessionId = nextSessionId++;
@@ -105,9 +163,13 @@ contract SessionManager {
         newSession.user = msg.sender;
         newSession.dAppId = dAppId;
         newSession.startTime = block.timestamp;
+        newSession.lastActivityTime = block.timestamp;
         newSession.endTime = 0;
         newSession.transactionCount = 0;
         newSession.gasSpent = 0;
+        newSession.sessionContract = sessionContract;
+        newSession.userAgent = userAgent;
+        newSession.ipAddress = ipAddress;
         newSession.isActive = true;
 
         // Track session
@@ -115,7 +177,33 @@ contract SessionManager {
         userSessions[msg.sender].push(sessionId);
         dAppActiveSessions[dAppId].push(sessionId);
 
-        emit SessionStarted(sessionId, msg.sender, dAppId, block.timestamp);
+        emit SessionStarted(
+            sessionId, 
+            msg.sender, 
+            dAppId, 
+            sessionContract, 
+            userAgent, 
+            ipAddress, 
+            block.timestamp,
+            block.number
+        );
+        
+        emit SessionActivity(
+            sessionId,
+            msg.sender,
+            dAppId,
+            "session_started",
+            abi.encodePacked(
+                "sessionContract:", 
+                Strings.toHexString(uint256(uint160(sessionContract)), 20),
+                ", userAgent:", 
+                Strings.toHexString(uint256(userAgent)),
+                ", ipAddress:",
+                Strings.toHexString(uint256(ipAddress))
+            ),
+            block.timestamp,
+            block.number
+        );
 
         return sessionId;
     }
@@ -124,13 +212,25 @@ contract SessionManager {
      * @notice End an active session
      * @param sessionId ID of the session to end
      */
+    /**
+     * @notice End an active session
+     * @param sessionId ID of the session to end
+     */
     function endSession(uint256 sessionId) external {
+        _endSession(sessionId);
+    }
+    
+    /**
+     * @notice Internal function to end a session
+     * @param sessionId ID of the session to end
+     */
+    function _endSession(uint256 sessionId) internal {
         Session storage session = sessions[sessionId];
 
         if (session.sessionId == 0) {
             revert SessionNotFound(sessionId);
         }
-        if (session.user != msg.sender) {
+        if (session.user != msg.sender && !registry.isDAppRegistered(session.dAppId)) {
             revert UnauthorizedSessionAccess(msg.sender, sessionId);
         }
         if (!session.isActive) {
@@ -155,7 +255,26 @@ contract SessionManager {
             session.dAppId,
             duration,
             session.transactionCount,
-            block.timestamp
+            session.gasSpent,
+            block.timestamp,
+            block.number
+        );
+        
+        emit SessionActivity(
+            sessionId,
+            session.user,
+            session.dAppId,
+            "session_ended",
+            abi.encodePacked(
+                "duration:", 
+                Strings.toString(duration),
+                ", transactions:", 
+                Strings.toString(session.transactionCount),
+                ", gasSpent:",
+                Strings.toString(session.gasSpent)
+            ),
+            block.timestamp,
+            block.number
         );
     }
 
@@ -165,32 +284,67 @@ contract SessionManager {
      * @param additionalTxCount Number of transactions to add
      * @param additionalGas Amount of gas to add
      */
+    /**
+     * @notice Update session with new activity
+     * @param sessionId ID of the session to update
+     * @param additionalTxCount Number of transactions to add
+     * @param additionalGas Amount of gas to add
+     * @param activityType Type of activity (e.g., 'transaction', 'interaction')
+     * @param activityData Additional data about the activity
+     */
     function updateSession(
         uint256 sessionId,
         uint256 additionalTxCount,
-        uint256 additionalGas
+        uint256 additionalGas,
+        string calldata activityType,
+        bytes calldata activityData
     ) external {
         Session storage session = sessions[sessionId];
 
         if (session.sessionId == 0) {
             revert SessionNotFound(sessionId);
         }
-        if (session.user != msg.sender) {
+        if (session.user != msg.sender && !registry.isDAppRegistered(session.dAppId)) {
             revert UnauthorizedSessionAccess(msg.sender, sessionId);
         }
         if (!session.isActive) {
             revert SessionNotActive(sessionId);
         }
-
+        
+        // Update last activity time
+        session.lastActivityTime = block.timestamp;
+        
+        // Update transaction and gas metrics
+        uint256 oldTxCount = session.transactionCount;
+        uint256 oldGasSpent = session.gasSpent;
+        
         session.transactionCount += additionalTxCount;
         session.gasSpent += additionalGas;
 
         emit SessionUpdated(
             sessionId,
             session.transactionCount,
+            additionalGas,
             session.gasSpent,
-            block.timestamp
+            block.timestamp,
+            block.number
         );
+        
+        // Emit activity event
+        emit SessionActivity(
+            sessionId,
+            session.user,
+            session.dAppId,
+            activityType,
+            activityData,
+            block.timestamp,
+            block.number
+        );
+        
+        // Auto-extend session if it's about to expire
+        if (block.timestamp + 15 minutes > session.lastActivityTime + 1 hours) {
+            _extendSession(session);
+        }
     }
 
     /**
@@ -232,6 +386,50 @@ contract SessionManager {
      * @notice Get session details by session ID
      * @param sessionId ID of the session
      * @return Session struct
+     */
+    /**
+     * @notice Extend the session duration
+     * @param sessionId ID of the session to extend
+     * @param additionalTime Additional time in seconds to extend the session
+     */
+    function extendSession(uint256 sessionId, uint256 additionalTime) external {
+        Session storage session = sessions[sessionId];
+        
+        if (session.sessionId == 0) {
+            revert SessionNotFound(sessionId);
+        }
+        if (session.user != msg.sender && !registry.isDAppRegistered(session.dAppId)) {
+            revert UnauthorizedSessionAccess(msg.sender, sessionId);
+        }
+        if (!session.isActive) {
+            revert SessionNotActive(sessionId);
+        }
+        
+        _extendSession(session, additionalTime);
+    }
+    
+    /**
+     * @notice Internal function to extend a session
+     * @param session Storage reference to the session
+     * @param additionalTime Additional time in seconds to extend the session
+     */
+    function _extendSession(Session storage session, uint256 additionalTime) internal {
+        uint256 oldEndTime = session.endTime;
+        session.endTime = oldEndTime + additionalTime;
+        
+        emit SessionExtended(
+            session.sessionId,
+            session.endTime,
+            additionalTime,
+            block.timestamp,
+            block.number
+        );
+    }
+    
+    /**
+     * @notice Get session details by ID
+     * @param sessionId ID of the session
+     * @return session Session details
      */
     function getSession(uint256 sessionId) external view returns (Session memory) {
         if (sessions[sessionId].sessionId == 0) {
@@ -304,7 +502,7 @@ contract SessionManager {
     }
 
     /**
-     * @notice Internal function to remove a session from the active sessions array
+     * @notice Internal function to remove a session from active sessions list
      * @param dAppId ID of the dApp
      * @param sessionId ID of the session to remove
      */
@@ -314,9 +512,23 @@ contract SessionManager {
 
         for (uint256 i = 0; i < length; i++) {
             if (activeSessions[i] == sessionId) {
-                // Move the last element to this position and pop
-                activeSessions[i] = activeSessions[length - 1];
+                // Move the last element to the current position
+                if (i < length - 1) {
+                    activeSessions[i] = activeSessions[length - 1];
+                }
+                // Remove the last element
                 activeSessions.pop();
+                
+                emit SessionActivity(
+                    sessionId,
+                    sessions[sessionId].user,
+                    dAppId,
+                    "session_removed_from_active",
+                    bytes(""),
+                    block.timestamp,
+                    block.number
+                );
+                
                 break;
             }
         }
