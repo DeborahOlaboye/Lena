@@ -479,14 +479,6 @@ contract AnalyticsRegistry is Ownable {
 
     /**
      * @notice Get the total number of registered dApps
-     * @return uint256 Total number of dApps
-     */
-    function getTotalDApps() external view returns (uint256) {
-        return dAppIds.length;
-    }
-
-    /**
-     * @notice Get the total number of registered dApps
      * @return uint256 Total count of dApps
      */
     function getTotalDApps() external view returns (uint256) {
@@ -496,13 +488,65 @@ contract AnalyticsRegistry is Ownable {
     /**
      * @notice Check if an address owns a specific dApp
      * @param owner Address to check
-     * @param dAppId ID of the dApp
+     * @param dAppId ID of the dApp to check
      * @return bool True if the address owns the dApp
      */
     function isDAppOwner(address owner, uint256 dAppId) external view returns (bool) {
         if (dApps[dAppId].registeredAt == 0) {
-            return false;
+            revert DAppNotFound(dAppId);
         }
         return dApps[dAppId].owner == owner;
+    }
+
+    /**
+     * @notice Transfer ownership of a dApp to a new address
+     * @param dAppId ID of the dApp to transfer
+     * @param newOwner Address of the new owner
+     */
+    function transferDAppOwnership(uint256 dAppId, address newOwner) external {
+        DAppInfo storage dApp = dApps[dAppId];
+
+        if (dApp.registeredAt == 0) {
+            revert DAppNotFound(dAppId);
+        }
+        if (dApp.owner != msg.sender) {
+            revert UnauthorizedAccess(msg.sender, dAppId);
+        }
+        if (newOwner == address(0)) {
+            revert("Invalid new owner");
+        }
+
+        // Remove from old owner's list
+        uint256[] storage ownerDAppList = ownerDApps[msg.sender];
+        for (uint256 i = 0; i < ownerDAppList.length; i++) {
+            if (ownerDAppList[i] == dAppId) {
+                ownerDAppList[i] = ownerDAppList[ownerDAppList.length - 1];
+                ownerDAppList.pop();
+                break;
+            }
+        }
+
+        // Add to new owner's list
+        ownerDApps[newOwner].push(dAppId);
+        dApp.owner = newOwner;
+        dApp.updatedAt = block.timestamp;
+    }
+
+    /**
+     * @notice Check if a contract address is registered to any dApp
+     * @param contractAddress The contract address to check
+     * @return bool True if the contract is registered
+     */
+    function isContractRegistered(address contractAddress) external view returns (bool) {
+        return contractToDAppId[contractAddress] != 0;
+    }
+
+    /**
+     * @notice Get the number of dApps owned by an address
+     * @param owner The address to check
+     * @return uint256 Number of dApps owned by the address
+     */
+    function getDAppCountByOwner(address owner) external view returns (uint256) {
+        return ownerDApps[owner].length;
     }
 }
