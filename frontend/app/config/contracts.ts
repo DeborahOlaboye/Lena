@@ -1,7 +1,7 @@
 import { CHAINS, DEFAULT_CHAIN_ID, type ChainId } from './chains';
 
 // Contract addresses by chain ID
-type ContractAddresses = {
+export type ContractAddresses = {
   AnalyticsRegistry: string;
   EventLogger: string;
   SessionManager: string;
