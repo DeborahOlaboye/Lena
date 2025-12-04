@@ -4,6 +4,7 @@ import "./globals.css";
 import { Web3Provider } from "./providers/Web3Provider";
 import { DAppProvider } from "./providers/DAppProvider";
 import { Web3Modal } from "./providers/Web3Modal";
+import { ThemeProvider } from "./providers/ThemeProvider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -29,7 +30,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en" suppressHydrationWarning>
       <head>
         <link
           rel="preload"
@@ -45,16 +46,31 @@ export default function RootLayout({
           type="font/woff2"
           crossOrigin="anonymous"
         />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                try {
+                  const theme = localStorage.getItem('theme') || 
+                    (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+                  document.documentElement.classList.add(theme);
+                } catch (e) {}
+              })();
+            `,
+          }}
+        />
       </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-gray-50 dark:bg-black`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-100 transition-colors duration-200`}
       >
-        <Web3Provider>
-          <DAppProvider>
-            {children}
-            <Web3Modal />
-          </DAppProvider>
-        </Web3Provider>
+        <ThemeProvider>
+          <Web3Provider>
+            <DAppProvider>
+              {children}
+              <Web3Modal />
+            </DAppProvider>
+          </Web3Provider>
+        </ThemeProvider>
       </body>
     </html>
   );
