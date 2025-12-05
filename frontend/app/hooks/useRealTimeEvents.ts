@@ -1,21 +1,35 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useContractsSafe } from "./useContractsSafe";
-import { AnalyticsEvent } from "../types";
+import type { AnalyticsEvent } from "@/types/analytics";
+
+declare global {
+  // Extend Window interface if needed
+  interface Window {
+    // Add any global window properties here if needed
+  }
 import { ethers } from "ethers";
 import { dataStreamsService } from "../services/dataStreamsService";
+import { handleError } from "../utils/errorHandler";
 
 export function useRealTimeEvents(dAppId?: number, limit: number = 50) {
   const [events, setEvents] = useState<AnalyticsEvent[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const { eventLogger, isReady } = useContractsSafe();
+  const isMounted = useRef(true);
+  const unsubscribeRef = useRef<(() => void) | null>(null);
 
   const loadEvents = useCallback(async () => {
     if (!eventLogger || !isReady) {
-      console.log("loadEvents: eventLogger or isReady not available", { eventLogger: !!eventLogger, isReady });
-      setIsLoading(false);
+      console.log("loadEvents: eventLogger or isReady not available", { 
+        eventLogger: !!eventLogger, 
+        isReady 
+      });
+      if (isMounted.current) {
+        setIsLoading(false);
+      }
       return;
     }
 
@@ -55,11 +69,23 @@ export function useRealTimeEvents(dAppId?: number, limit: number = 50) {
     }
   }, [eventLogger, isReady, dAppId, limit]);
 
-  // Subscribe to real-time events using both contract events and Data Streams
+  // Subscribe to real-time events
   useEffect(() => {
-    if (!eventLogger || !isReady) {
-      setIsLoading(false);
-      return;
+    isMounted.current = true;
+    
+    // Initial load
+    loadEvents();
+
+    // Set up real-time subscription
+    let unsubscribe: (() => void) | undefined;
+    
+    const setupSubscription = async () => {
+      if (!eventLogger || !isReady || !dAppId) {
+        if (isMounted.current) {
+          setIsLoading(false);
+        }
+        return;
+      }
     }
 
     loadEvents();
@@ -110,7 +136,7 @@ export function useRealTimeEvents(dAppId?: number, limit: number = 50) {
         dataStreamsService.unsubscribe(subscriptionId);
       }
     };
-  }, [eventLogger, isReady, loadEvents, dAppId]);
+  }, [eventLogger, isReady, dAppId, limit, loadEvents]);
 
   return {
     events,
