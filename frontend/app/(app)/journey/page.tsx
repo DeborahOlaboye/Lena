@@ -1,11 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { Users, TrendingUp, Clock, Activity } from "lucide-react";
+import { Users, TrendingUp, Clock, Activity, Search } from "lucide-react";
 import { useAccount } from "wagmi";
 import { useRealTimeEvents } from "../../hooks/useRealTimeEvents";
 import { formatAddress, formatTimeAgo } from "../../lib/utils";
 import { SIMPLE_SWAP_DAPP_ID } from "../../config/contracts";
+import { EnhancedTimeline } from "../../components/EnhancedTimeline";
+import { UserJourneyFlow } from "../../components/UserJourneyFlow";
 
 export default function JourneyPage() {
   const { address } = useAccount();
@@ -37,78 +39,69 @@ export default function JourneyPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-          User Journey
-        </h1>
-        <p className="mt-2 text-gray-600 dark:text-gray-400">
-          Track user behavior and interactions
-        </p>
-      </div>
-
-      {/* Search */}
-      <div className="rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-          Search User Address
-        </label>
-        <input
-          type="text"
-          value={searchAddress}
-          onChange={(e) => setSearchAddress(e.target.value)}
-          className="mt-2 w-full rounded-lg border border-gray-300 px-4 py-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 dark:border-gray-600 dark:bg-gray-800 dark:focus:ring-blue-900"
-          placeholder="0x..."
-        />
-      </div>
-
-      {/* User Journey Timeline */}
-      {searchAddress && (
-        <div className="rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-            Journey Timeline for {formatAddress(searchAddress)}
-          </h2>
-          <p className="text-sm text-gray-600 dark:text-gray-400">
-            {userEvents.length} events
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+            User Journey
+          </h1>
+          <p className="mt-1 text-gray-600 dark:text-gray-400">
+            Track and visualize user interactions and flows
           </p>
+        </div>
+        
+        {/* Search */}
+        <div className="w-96">
+          <label htmlFor="search" className="sr-only">Search user address</label>
+          <div className="relative">
+            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+              <Search className="h-5 w-5 text-gray-400" />
+            </div>
+            <input
+              id="search"
+              type="text"
+              value={searchAddress}
+              onChange={(e) => setSearchAddress(e.target.value)}
+              className="block w-full rounded-lg border-0 bg-white py-2 pl-10 pr-3 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-blue-500 dark:bg-gray-800 dark:text-white dark:ring-gray-600 dark:focus:ring-blue-500 sm:text-sm sm:leading-6"
+              placeholder="Search by wallet address..."
+            />
+          </div>
+        </div>
+      </div>
 
-          {userEvents.length === 0 ? (
-            <div className="mt-6 flex flex-col items-center justify-center py-12 text-center">
-              <Activity className="mb-2 h-12 w-12 text-gray-300 dark:text-gray-700" />
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                No events found for this user
-              </p>
+      {/* User Journey Visualization */}
+      {searchAddress ? (
+        <div className="space-y-8">
+          {/* Flow Diagram */}
+          <div className="rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">
+            <h2 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">
+              User Flow
+            </h2>
+            <div className="h-96 rounded-lg border border-gray-200 dark:border-gray-700">
+              <UserJourneyFlow events={userEvents} />
             </div>
-          ) : (
-            <div className="mt-6 space-y-4">
-              {userEvents.map((event, index) => (
-                <div key={event.eventId.toString()} className="relative">
-                  {index < userEvents.length - 1 && (
-                    <div className="absolute left-6 top-12 h-full w-0.5 bg-gray-200 dark:bg-gray-700" />
-                  )}
-                  <div className="flex items-start gap-4">
-                    <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-purple-600">
-                      <Activity className="h-6 w-6 text-white" />
-                    </div>
-                    <div className="flex-1 rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <p className="font-semibold text-gray-900 dark:text-white">
-                            {event.eventType.replace(/_/g, " ").charAt(0).toUpperCase() +
-                             event.eventType.replace(/_/g, " ").slice(1)}
-                          </p>
-                          <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-                            {formatTimeAgo(Number(event.timestamp))}
-                          </p>
-                        </div>
-                        <span className="rounded-full bg-blue-100 px-2 py-1 text-xs text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
-                          Block #{event.blockNumber.toString()}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
+          </div>
+          
+          {/* Detailed Timeline */}
+          <div className="rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                Detailed Timeline for {formatAddress(searchAddress)}
+              </h2>
+              <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-medium text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
+                {userEvents.length} events
+              </span>
             </div>
-          )}
+            
+            <EnhancedTimeline events={userEvents} />
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-gray-300 p-12 text-center dark:border-gray-700">
+          <Search className="mx-auto h-12 w-12 text-gray-400" />
+          <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">No user selected</h3>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            Search for a wallet address to view their journey
+          </p>
         </div>
       )}
 
