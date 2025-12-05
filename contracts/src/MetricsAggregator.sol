@@ -2,6 +2,7 @@
 pragma solidity 0.8.20;
 
 import "./AnalyticsRegistry.sol";
+import "./AlertManager.sol";
 
 /**
  * @title MetricsAggregator
@@ -34,6 +35,9 @@ contract MetricsAggregator {
 
     // Reference to the AnalyticsRegistry contract
     AnalyticsRegistry public immutable registry;
+    
+    // Reference to the AlertManager contract
+    AlertManager public alertManager;
 
     // Mapping from dApp ID => date => metrics
     mapping(uint256 => mapping(uint256 => DailyMetrics)) private dailyMetrics;
@@ -53,6 +57,11 @@ contract MetricsAggregator {
         uint256 totalGas,
         uint256 timestamp,
         uint256 blockNumber
+    );
+    
+    event AlertManagerUpdated(
+        address indexed oldAlertManager,
+        address indexed newAlertManager
     );
 
     event TransactionRecorded(
@@ -118,6 +127,7 @@ contract MetricsAggregator {
 
     // Custom errors
     error DAppNotRegistered(uint256 dAppId);
+    error InvalidAlertManagerAddress();
     error InvalidDateRange();
     error NoMetricsFound();
 
@@ -126,8 +136,17 @@ contract MetricsAggregator {
      * @param _registry Address of the AnalyticsRegistry contract
      */
     constructor(address _registry) {
-        require(_registry != address(0), "Invalid registry address");
         registry = AnalyticsRegistry(_registry);
+    }
+    
+    /**
+     * @notice Set the AlertManager contract address
+     * @param _alertManager Address of the AlertManager contract
+     */
+    function setAlertManager(address _alertManager) external {
+        require(_alertManager != address(0), "Invalid AlertManager address");
+        emit AlertManagerUpdated(address(alertManager), _alertManager);
+        alertManager = AlertManager(_alertManager);
     }
 
     /**
@@ -201,6 +220,16 @@ contract MetricsAggregator {
             block.timestamp,
             block.number
         );
+        
+        // Check for alerts if AlertManager is set
+        if (address(alertManager) != address(0)) {
+            try alertManager.checkForAlerts(
+                dAppId,
+                _normalizeDate(block.timestamp),
+                gasUsed,
+                success
+            ) {} catch {}
+        }
 
         // Emit high value transaction event if applicable
         if (value > 1 ether) {
